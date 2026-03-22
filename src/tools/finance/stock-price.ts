@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { api } from './free-api.js';
 import { formatToolResult } from '../types.js';
 
 export const STOCK_PRICE_DESCRIPTION = `

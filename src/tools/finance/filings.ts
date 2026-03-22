@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { api } from './free-api.js';
 import { formatToolResult } from '../types.js';
 import { TTL_24H } from './utils.js';
 
@@ -27,13 +27,9 @@ export async function getFilingItemTypes(): Promise<FilingItemTypes> {
     return cachedItemTypes;
   }
 
-  const response = await fetch('https://api.financialdatasets.ai/filings/items/types/');
-  if (!response.ok) {
-    throw new Error(`[Financial Datasets API] Failed to fetch filing item types: ${response.status}`);
-  }
-  const itemTypes = (await response.json()) as FilingItemTypes;
-  cachedItemTypes = itemTypes;
-  return itemTypes;
+  const { data } = await api.get('/filings/items/types/', {});
+  cachedItemTypes = data as unknown as FilingItemTypes;
+  return cachedItemTypes;
 }
 
 const FilingsInputSchema = z.object({

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { callLlm } from '../../model/llm.js';
 import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
-import { api } from './api.js';
+import { api } from './free-api.js';
 
 /**
  * Rich description for the screen_stocks tool.
