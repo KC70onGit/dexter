@@ -239,9 +239,21 @@ export class Agent {
       messages = messageState.messages;
 
       // Inject tool usage warning if approaching limits
+      const warningMessages: string[] = [];
       const toolUsageWarning = ctx.scratchpad.formatToolUsageForPrompt();
       if (toolUsageWarning) {
-        messages.push(new HumanMessage(toolUsageWarning));
+        warningMessages.push(toolUsageWarning);
+      }
+      if (ctx.iteration != null && this.maxIterations != null) {
+        const remaining = this.maxIterations - ctx.iteration;
+        if (remaining <= 2) {
+          warningMessages.push(`⚠️ ITERATION BUDGET: Step ${ctx.iteration}/${this.maxIterations} — only ${remaining} step(s) remaining. You MUST deliver your final answer NOW using the data you have. Do NOT call any more tools.`);
+        } else if (remaining <= 4) {
+          warningMessages.push(`🔶 Iteration budget: Step ${ctx.iteration}/${this.maxIterations} — ${remaining} steps remaining. Start wrapping up. Only make essential tool calls and prepare your final answer.`);
+        }
+      }
+      if (warningMessages.length > 0) {
+        messages.push(new HumanMessage(warningMessages.join('\\n\\n')));
       }
 
       // Drain queued messages: user may have sent follow-ups while agent was working

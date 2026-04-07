@@ -1,3 +1,17 @@
+# How to Run Dexter
+
+```bash
+cd ~/Python/dexter
+bun run start
+```
+
+For **watch mode** (auto-restarts on file changes):
+```bash
+bun run dev
+```
+
+---
+
 # Dexter: Local Customizations & Fixes
 
 This document tracks local modifications made to the clean Dexter GitHub pull to ensure things run smoothly and API keys are fully functional.
@@ -25,3 +39,13 @@ Created the `.env` file (from `env.example`) and populated it to enable Dexter's
 **File observed:** `src/tools/finance/free-api.ts`
 - **Behavior:** The upstream Dexter repository recently implemented `free-api.ts` as a hardcoded "Drop-in replacement for financialdatasets.ai API" (marked internally as `FIX-042b: Zero cost, no API keys required`). 
 - **Impact:** Even though `FINANCIAL_DATASETS_API_KEY` is proudly set in `.env`, the system by default currently routes requests (Income statement, Balance Sheet, Cash Flow, etc.) through the `free-api.ts` script—which scrapes Yahoo Finance and SEC EDGAR databases instead of burning through your paid credits at `financialdatasets.ai`.
+
+## 4. Iteration Budget Awareness (Prompt Fix)
+**Files changed:** `src/agent/agent.ts`, `src/agent/prompts.ts`
+- **Issue:** The agent had no awareness of how many iterations it had used or had remaining. On complex queries it would keep exploring broadly until the hardcoded `maxIterations: 10` cap cut it off, wasting tokens and returning *"Reached maximum iterations…"* with no answer.
+- **Fix Applied:** Injected an iteration budget counter into every iteration prompt (`buildIterationPrompt`). The agent now sees how many steps remain and receives escalating urgency cues:
+  - **≤ 4 steps left** → `🔶 Start wrapping up`
+  - **≤ 2 steps left** → `⚠️ You MUST deliver your final answer NOW`
+- **Result:** The 10-iteration cap stays the same (no extra token spend), but the agent converges on a final answer instead of running out of runway.
+
+
