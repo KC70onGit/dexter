@@ -1,13 +1,13 @@
 # How to Run Dexter
 
 ```bash
-cd ~/Python_Dev/dexter-telegram
+cd <dexter-telegram-repo>
 bun run start
 ```
 
 ```bash
 Telegram Gateway
-cd ~/Python_Dev/dexter-telegram
+cd <dexter-telegram-repo>
 bun run gateway
 ```
 
@@ -21,8 +21,8 @@ bun run dev
 
 # Dexter: Local Customizations & Fixes
 
-> **⚠️ NOTE: This is the Telegram Bridge development copy (`~/Python_Dev/dexter-telegram`).**
-> **Do not use this for production screening. For live trading/screening, use `~/Python/dexter`.**
+> **⚠️ NOTE: This is the Telegram Bridge checkout (`dexter-telegram`).**
+> **Use the active environment's repo root, not a hardcoded absolute path.**
 
 This document tracks local modifications made to the clean Dexter GitHub pull to ensure things run smoothly and API keys are fully functional.
 
@@ -48,7 +48,7 @@ This checkout now carries the Telegram bridge work for the AlgoTrader trading-bu
 ### Local dev runtime
 
 - `bun run gateway` starts the Telegram bridge
-- `python3 /Users/keespronk/Python_Dev/algotrader/monitor_server.py --host 127.0.0.1 --port 8787` provides the local AlgoTrader REST surface used by the bridge
+- from the `dexter-telegram` repo root, `python3 ../algotrader/monitor_server.py --host 127.0.0.1 --port 8787` provides the local AlgoTrader REST surface used by the bridge when `algotrader` is checked out as a sibling repo
 - this bridge is now validated for:
   - Telegram chat end-to-end
   - positions / health / signals / trades read flows
@@ -89,4 +89,3 @@ Created the `.env` file (from `env.example`) and populated it to enable Dexter's
   - **≤ 4 steps left** → `🔶 Start wrapping up`
   - **≤ 2 steps left** → `⚠️ You MUST deliver your final answer NOW`
 - **Result:** The 10-iteration cap stays the same (no extra token spend), but the agent converges on a final answer instead of running out of runway.
-
