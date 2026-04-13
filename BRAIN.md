@@ -3,6 +3,11 @@
 This repo is the dedicated `dexter-telegram` checkout for the Telegram trading-buddy bridge.
 It is separate from the main AlgoTrader repo and should be treated as its own app/runtime.
 
+Current working split:
+
+- dev checkout: `/Users/keespronk/Python_Dev/dexter-telegram`
+- prod checkout: `/Users/keespronk/Python/dexter-telegram`
+
 ## What This Repo Runs
 
 There are two practical run modes:
@@ -26,14 +31,14 @@ That auto-restarts on file changes, but it is still a foreground process.
 
 ## Start And Stop Model
 
-This repo does not currently ship with a built-in service manager, launchd plist, systemd unit, or PM2 config.
+The repo now carries a prod launchd wrapper, but dev remains manual.
 
 Current operating model:
 
-- Run `bun run gateway` in its own terminal when you want the Telegram bot online.
-- Stop it with `Ctrl+C`.
-- For long-lived sessions, a dedicated terminal or `tmux` session is the safest default.
-- If you later want this to survive logouts/reboots, we should add a real service wrapper explicitly.
+- prod checkout runs as a `launchd` service
+- dev checkout runs manually in a terminal
+- stop dev with `Ctrl+C`
+- never run dev and prod at the same time on the shared Telegram token
 
 Recommended split with one Telegram token:
 
@@ -46,6 +51,10 @@ Recommended mental model:
 - `bun run start` = local interactive Dexter
 - `bun run gateway` = live messaging bot
 - `./scripts/prod_service.sh ...` = prod launchd lifecycle wrapper
+
+Current prod service label:
+
+- `com.keespronk.dexter-telegram.prod`
 
 ## Required Runtime Inputs
 
@@ -63,6 +72,7 @@ Important env/config expectations:
 - `DEXTER_TELEGRAM_SAFETY_STATE_PATH` is optional and defaults to `.dexter/telegram-safety.json`
 - `DEXTER_RUNTIME_NAME` and `DEXTER_RUNTIME_ROLE` are optional explicit identity labels shown in the agent prompt when users ask whether they are talking to dev or prod
 - if `.dexter/settings.json` does not exist yet, Dexter now auto-picks the first provider with a configured API key instead of assuming OpenAI
+- `.dexter/settings.json` is the persisted runtime model/provider selection used by the gateway
 
 Suggested explicit values:
 
@@ -72,6 +82,11 @@ Suggested explicit values:
 - prod checkout:
   - `DEXTER_RUNTIME_NAME=prod`
   - `DEXTER_RUNTIME_ROLE=production`
+
+Current aligned selection in both dev and prod:
+
+- provider: `google`
+- model: `gemini-3-flash-preview`
 
 ## External Dependency
 
@@ -92,7 +107,13 @@ Important endpoints used by the bridge:
 - `GET /api/chart?ticker=...`
 - `POST /api/trade`
 
-If the health endpoint is stale, `NO_DATA`, or `MARKET_CLOSED`, trade-request writes are blocked by policy.
+If the health endpoint is stale, `NO_DATA`, or fresh `MARKET_CLOSED`, trade-request writes are blocked by policy.
+
+Health interpretation nuance:
+
+- stale `MARKET_CLOSED` is not treated as proof the exchange is currently closed
+- `NO_DATA` means the monitor has no live session data
+- the health tool now emits `session_state_authoritative` and `market_hours_inference_allowed` so Dexter can say "monitor is stale/offline" instead of overstating exchange status
 
 ## Repo Map
 
@@ -118,11 +139,12 @@ Current bridge behavior:
 - trade requests are staged through Telegram confirmation markers
 - confirmed requests are audited to `.dexter/telegram-trade-audit.jsonl`
 - trade writes are policy-gated by heartbeat and daily limits
+- live-state answers should explicitly distinguish fresh monitor truth from stale/offline monitor snapshots
 
 ## Operational Notes
 
 - If Telegram returns `409 Conflict`, another poller is already using the same bot token.
-- The safest fix is to stop the other process or use a dedicated Telegram bot token for this repo.
+- In this setup, the normal fix is to stop the other process. Prod is the default live runtime; dev should only be started manually after prod is stopped.
 - `bun run typecheck` currently exposes upstream code/test typing issues; that is separate from the gateway's runtime bootability.
 
 ## Prod Service
@@ -155,6 +177,23 @@ and then bootstraps it from there.
 This service points at the prod checkout:
 
 - `/Users/keespronk/Python/dexter-telegram`
+
+Typical operator flow with one shared token:
+
+```bash
+# Normal live state
+./scripts/prod_service.sh start
+
+# Switch to dev testing
+./scripts/prod_service.sh stop
+cd /Users/keespronk/Python_Dev/dexter-telegram
+bun run gateway
+
+# Switch back to prod
+# stop dev with Ctrl+C first
+cd /Users/keespronk/Python_Dev/dexter-telegram
+./scripts/prod_service.sh start
+```
 
 ## Related BRAIN Files
 
