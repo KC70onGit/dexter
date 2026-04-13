@@ -92,6 +92,7 @@ export class Agent {
       soulContent,
       config.channel,
       config.groupContext,
+      config.channelContext,
       memoryFiles,
       memoryContext,
       rulesContent,

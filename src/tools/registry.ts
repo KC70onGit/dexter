@@ -1,4 +1,18 @@
 import { StructuredToolInterface } from '@langchain/core/tools';
+import {
+  ALGOTRADER_CHART_DESCRIPTION,
+  ALGOTRADER_HEALTH_DESCRIPTION,
+  ALGOTRADER_POSITIONS_DESCRIPTION,
+  ALGOTRADER_REQUEST_TRADE_DESCRIPTION,
+  ALGOTRADER_SIGNALS_DESCRIPTION,
+  ALGOTRADER_TRADES_DESCRIPTION,
+  createAlgoTraderChartTool,
+  createAlgoTraderHealthTool,
+  createAlgoTraderPositionsTool,
+  createAlgoTraderRequestTradeTool,
+  createAlgoTraderSignalsTool,
+  createAlgoTraderTradesTool,
+} from './algotrader/index.js';
 import { createGetFinancials, createGetMarketData, createReadFilings, createScreenStocks } from './finance/index.js';
 import { exaSearch, perplexitySearch, tavilySearch, WEB_SEARCH_DESCRIPTION, xSearchTool, X_SEARCH_DESCRIPTION } from './search/index.js';
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
@@ -41,6 +55,48 @@ export interface RegisteredTool {
  */
 export function getToolRegistry(model: string): RegisteredTool[] {
   const tools: RegisteredTool[] = [
+    {
+      name: 'algotrader_health',
+      tool: createAlgoTraderHealthTool(),
+      description: ALGOTRADER_HEALTH_DESCRIPTION,
+      compactDescription: 'Read live AlgoTrader health and freshness before making claims about current state.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'algotrader_positions',
+      tool: createAlgoTraderPositionsTool(),
+      description: ALGOTRADER_POSITIONS_DESCRIPTION,
+      compactDescription: 'Read the live AlgoTrader positions snapshot with staleness metadata.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'algotrader_signals',
+      tool: createAlgoTraderSignalsTool(),
+      description: ALGOTRADER_SIGNALS_DESCRIPTION,
+      compactDescription: 'Read the current live AlgoTrader signal list.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'algotrader_trades',
+      tool: createAlgoTraderTradesTool(),
+      description: ALGOTRADER_TRADES_DESCRIPTION,
+      compactDescription: 'Read recent AlgoTrader trade history, excluding simulated rows by default.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'algotrader_chart',
+      tool: createAlgoTraderChartTool(),
+      description: ALGOTRADER_CHART_DESCRIPTION,
+      compactDescription: 'Read a cached AlgoTrader chart payload for a ticker.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'algotrader_request_trade',
+      tool: createAlgoTraderRequestTradeTool(),
+      description: ALGOTRADER_REQUEST_TRADE_DESCRIPTION,
+      compactDescription: 'Prepare a live trade request for Telegram confirmation buttons. Does not execute immediately.',
+      concurrencySafe: false,
+    },
     {
       name: 'get_financials',
       tool: createGetFinancials(model),

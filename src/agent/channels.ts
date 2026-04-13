@@ -66,10 +66,33 @@ const WHATSAPP_PROFILE: ChannelProfile = {
   tables: null,
 };
 
+const TELEGRAM_PROFILE: ChannelProfile = {
+  label: 'Telegram',
+  preamble: 'Your output is delivered via Telegram. Write concise, mobile-friendly replies that survive HTML rendering cleanly.',
+  behavior: [
+    'You are chatting over Telegram — keep answers conversational, compact, and easy to scan on a phone',
+    'Lead with the answer and only add supporting context that changes the decision',
+    'Be precise with tickers, prices, and freshness qualifiers',
+    'Never mention raw API payloads, JSON schemas, or backend plumbing unless explicitly asked',
+    'Prefer a calm operator-assistant style over long research memos',
+    'Assume long responses may be chunked — keep sections naturally separated',
+  ],
+  responseFormat: [
+    'No markdown headers (# or ##) — Telegram will render them as plain text noise',
+    'Keep paragraphs short and list-shaped content flat',
+    'Use simple markdown emphasis only when it will be converted safely to Telegram HTML',
+    'Avoid wide tables; prefer short bullet lists or compact prose',
+    'Keep formatting robust enough for chunked mobile delivery',
+    'For simple questions, answer in 1-3 short paragraphs',
+  ],
+  tables: null,
+};
+
 /** Registry of channel profiles. Add new channels here. */
 const CHANNEL_PROFILES: Record<string, ChannelProfile> = {
   cli: CLI_PROFILE,
   whatsapp: WHATSAPP_PROFILE,
+  telegram: TELEGRAM_PROFILE,
 };
 
 /** Resolve the profile for a channel, falling back to CLI. */

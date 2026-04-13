@@ -1,16 +1,26 @@
 import { createChannelManager } from './channels/manager.js';
+import {
+  cancelPendingTelegramTrade,
+  confirmPendingTelegramTrade,
+  extractTelegramTradeMarker,
+} from './channels/telegram/trade-confirmations.js';
+import { assertTelegramDailyBudget, recordTelegramTokenUsage } from './channels/telegram/safety-policy.js';
 import { createWhatsAppPlugin } from './channels/whatsapp/plugin.js';
+import { createTelegramPlugin } from './channels/telegram/plugin.js';
 import {
   assertOutboundAllowed,
   sendComposing,
   sendMessageWhatsApp,
   type WhatsAppInboundMessage,
 } from './channels/whatsapp/index.js';
+import type { TelegramInboundMessage } from './channels/telegram/index.js';
+
+export type InboundMessage = (WhatsAppInboundMessage & { channel?: 'whatsapp' }) | TelegramInboundMessage;
 import { resolveRoute } from './routing/resolve-route.js';
 import { resolveSessionStorePath, upsertSessionMeta } from './sessions/store.js';
 import { loadGatewayConfig, type GatewayConfig } from './config.js';
 import { runAgentForMessage, isSessionRunning, enqueueForSession } from './agent-runner.js';
-import { cleanMarkdownForWhatsApp } from './utils.js';
+import { cleanMarkdownForWhatsApp, cleanMarkdownForTelegram } from './utils.js';
 import { startCronRunner } from '../cron/runner.js';
 import { ensureHeartbeatCronJob } from '../cron/heartbeat-migration.js';
 import {
@@ -41,7 +51,30 @@ function elide(text: string, maxLen: number): string {
   return text.slice(0, maxLen - 3) + '...';
 }
 
-async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage): Promise<void> {
+async function handleInbound(cfg: GatewayConfig, inbound: InboundMessage): Promise<void> {
+  if (inbound.channel === 'telegram' && inbound.body.startsWith('__telegram_trade_confirm__:')) {
+    const token = inbound.body.split(':', 2)[1] ?? '';
+    const result = await confirmPendingTelegramTrade({
+      token,
+      chatId: inbound.chatId,
+      userId: inbound.senderId,
+      config: cfg,
+    });
+    await inbound.reply(cleanMarkdownForTelegram(result.message));
+    return;
+  }
+
+  if (inbound.channel === 'telegram' && inbound.body.startsWith('__telegram_trade_cancel__:')) {
+    const token = inbound.body.split(':', 2)[1] ?? '';
+    const result = cancelPendingTelegramTrade({
+      token,
+      chatId: inbound.chatId,
+      userId: inbound.senderId,
+    });
+    await inbound.reply(cleanMarkdownForTelegram(result.message));
+    return;
+  }
+
   const bodyPreview = elide(inbound.body.replace(/\n/g, ' '), 50);
   const isGroup = inbound.chatType === 'group';
   console.log(`Inbound message ${inbound.from} (${inbound.chatType}, ${inbound.body.length} chars): "${bodyPreview}"`);
@@ -75,9 +108,10 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
 
   // --- Routing: use chatId for groups (group JID), senderId for DMs ---
   const peerId = isGroup ? inbound.chatId : inbound.senderId;
+  const channelId = inbound.channel ?? 'whatsapp';
   const route = resolveRoute({
     cfg,
-    channel: 'whatsapp',
+    channel: channelId,
     accountId: inbound.accountId,
     peer: { kind: inbound.chatType, id: peerId },
   });
@@ -86,7 +120,7 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
   upsertSessionMeta({
     storePath,
     sessionKey: route.sessionKey,
-    channel: 'whatsapp',
+    channel: channelId,
     to: inbound.from,
     accountId: route.accountId,
     agentId: route.agentId,
@@ -102,10 +136,15 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
       await inbound.sendComposing();
       typingTimer = setInterval(() => { void inbound.sendComposing(); }, TYPING_INTERVAL_MS);
     } else {
-      await sendComposing({ to: inbound.replyToJid, accountId: inbound.accountId });
-      typingTimer = setInterval(() => {
-        void sendComposing({ to: inbound.replyToJid, accountId: inbound.accountId });
-      }, TYPING_INTERVAL_MS);
+      if (channelId === 'telegram') {
+        await inbound.sendComposing();
+        typingTimer = setInterval(() => { void inbound.sendComposing(); }, TYPING_INTERVAL_MS);
+      } else {
+        await sendComposing({ to: inbound.replyToJid, accountId: inbound.accountId });
+        typingTimer = setInterval(() => {
+          void sendComposing({ to: inbound.replyToJid, accountId: inbound.accountId });
+        }, TYPING_INTERVAL_MS);
+      }
     }
   };
 
@@ -117,16 +156,28 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
   };
 
   try {
+    if (channelId === 'telegram') {
+      try {
+        assertTelegramDailyBudget({ config: cfg });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        await inbound.reply(cleanMarkdownForTelegram(`I can’t process more Telegram requests today.\n\nReason: ${msg}`));
+        return;
+      }
+    }
+
     // Defense-in-depth: verify outbound destination is allowed before any messaging
     // For groups, use chatId (the group JID); for DMs, use replyToJid
     const outboundTarget = isGroup ? inbound.chatId : inbound.replyToJid;
-    try {
-      assertOutboundAllowed({ to: outboundTarget, accountId: inbound.accountId });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      debugLog(`[gateway] outbound BLOCKED: ${msg}`);
-      console.log(msg);
-      return;
+    if (channelId === 'whatsapp') {
+      try {
+        assertOutboundAllowed({ to: outboundTarget, accountId: inbound.accountId });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        debugLog(`[gateway] outbound BLOCKED: ${msg}`);
+        console.log(msg);
+        return;
+      }
     }
 
     await startTypingLoop();
@@ -174,8 +225,19 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
       query,
       model,
       modelProvider,
-      channel: 'whatsapp',
+      channel: channelId,
       groupContext,
+      channelContext: channelId === 'telegram'
+        ? {
+            telegramChatId: inbound.chatId,
+            telegramUserId: inbound.senderId,
+          }
+        : undefined,
+      onEvent: async (event) => {
+        if (event.type === 'done' && channelId === 'telegram') {
+          recordTelegramTokenUsage({ tokenUsage: event.tokenUsage, config: cfg });
+        }
+      },
     });
     const durationMs = Date.now() - startedAt;
     debugLog(`[gateway] agent answer length=${answer.length}`);
@@ -184,9 +246,19 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
     stopTypingLoop();
 
     if (answer.trim()) {
-      const cleanedAnswer = cleanMarkdownForWhatsApp(answer).trim();
+      const cleanedAnswer = channelId === 'telegram'
+        ? cleanMarkdownForTelegram(answer).trim()
+        : cleanMarkdownForWhatsApp(answer).trim();
 
-      if (isGroup) {
+      if (channelId === 'telegram') {
+        const confirmation = extractTelegramTradeMarker(cleanedAnswer);
+        debugLog(`[gateway] sending target independent reply via telegram wrapper`);
+        if (confirmation) {
+          await inbound.replyWithTradeConfirmation(confirmation.text, confirmation.token);
+        } else {
+          await inbound.reply(cleanedAnswer);
+        }
+      } else if (isGroup) {
         // For groups, use inbound.reply() directly (bypasses outbound strict E.164 checks)
         debugLog(`[gateway] sending group reply to ${inbound.chatId}`);
         await inbound.reply(cleanedAnswer);
@@ -214,18 +286,33 @@ async function handleInbound(cfg: GatewayConfig, inbound: WhatsAppInboundMessage
 
 export async function startGateway(params: { configPath?: string } = {}): Promise<GatewayService> {
   const cfg = loadGatewayConfig(params.configPath);
-  const plugin = createWhatsAppPlugin({
+  const whatsappPlugin = createWhatsAppPlugin({
+    loadConfig: () => loadGatewayConfig(params.configPath),
+    onMessage: async (inbound) => {
+      const current = loadGatewayConfig(params.configPath);
+      await handleInbound(current, { ...inbound, channel: 'whatsapp' });
+    },
+  });
+  const telegramPlugin = createTelegramPlugin({
     loadConfig: () => loadGatewayConfig(params.configPath),
     onMessage: async (inbound) => {
       const current = loadGatewayConfig(params.configPath);
       await handleInbound(current, inbound);
     },
   });
-  const manager = createChannelManager({
-    plugin,
+  
+  const whatsappManager = createChannelManager({
+    plugin: whatsappPlugin,
     loadConfig: () => loadGatewayConfig(params.configPath),
   });
-  await manager.startAll();
+  
+  const telegramManager = createChannelManager({
+    plugin: telegramPlugin,
+    loadConfig: () => loadGatewayConfig(params.configPath),
+  });
+
+  await whatsappManager.startAll();
+  await telegramManager.startAll();
 
   ensureHeartbeatCronJob(params.configPath);
   const cron = startCronRunner({ configPath: params.configPath });
@@ -233,9 +320,9 @@ export async function startGateway(params: { configPath?: string } = {}): Promis
   return {
     stop: async () => {
       cron.stop();
-      await manager.stopAll();
+      await whatsappManager.stopAll();
+      await telegramManager.stopAll();
     },
-    snapshot: () => manager.getSnapshot(),
+    snapshot: () => ({ ...whatsappManager.getSnapshot(), ...telegramManager.getSnapshot() }),
   };
 }
-

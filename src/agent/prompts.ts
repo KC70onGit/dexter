@@ -217,6 +217,10 @@ export function buildSystemPrompt(
   soulContent?: string | null,
   channel?: string,
   groupContext?: GroupContext,
+  channelContext?: {
+    telegramChatId?: string;
+    telegramUserId?: string;
+  },
   memoryFiles?: string[],
   memoryContext?: string | null,
   rulesContent?: string | null,
@@ -252,6 +256,14 @@ ${buildSkillsSection()}
 
 ${buildMemorySection(memoryFiles ?? [], memoryContext)}
 
+${channelContext?.telegramChatId || channelContext?.telegramUserId ? `## Live Channel Context
+
+- Telegram chat id: ${channelContext.telegramChatId ?? 'unknown'}
+- Telegram user id: ${channelContext.telegramUserId ?? 'unknown'}
+
+Use these exact values when a live Telegram trade-request tool needs chat or user identity. Never invent or substitute them.
+` : ''}
+
 ## Behavior
 
 ${behaviorBullets}
@@ -280,6 +292,5 @@ ${formatBullets}${tablesSection}${groupContext ? '\n\n' + buildGroupSection(grou
 // ============================================================================
 // User Prompts
 // ============================================================================
-
 
 

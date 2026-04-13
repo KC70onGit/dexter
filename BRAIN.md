@@ -1,9 +1,16 @@
 # How to Run Dexter
 
 ```bash
-cd ~/Python/dexter
+cd ~/Python_Dev/dexter-telegram
 bun run start
 ```
+
+```bash
+Telegram Gateway
+cd ~/Python_Dev/dexter-telegram
+bun run gateway
+```
+
 
 For **watch mode** (auto-restarts on file changes):
 ```bash
@@ -14,7 +21,42 @@ bun run dev
 
 # Dexter: Local Customizations & Fixes
 
+> **⚠️ NOTE: This is the Telegram Bridge development copy (`~/Python_Dev/dexter-telegram`).**
+> **Do not use this for production screening. For live trading/screening, use `~/Python/dexter`.**
+
 This document tracks local modifications made to the clean Dexter GitHub pull to ensure things run smoothly and API keys are fully functional.
+
+## Telegram Trading Buddy Bridge (FIX-177)
+
+This checkout now carries the Telegram bridge work for the AlgoTrader trading-buddy plan.
+
+- Telegram transport lives under `src/gateway/channels/telegram/`
+- local gateway config is `.dexter/gateway.json`
+- the live bot token is read from `.env` / `TELEGRAM_BOT_TOKEN`
+- read-only AlgoTrader tools live under `src/tools/algotrader/`
+- guarded write preparation uses Telegram inline confirmation buttons and then POSTs to Python-owned `/api/trade`
+
+### Current safety model
+
+- Telegram inbound access is fail-closed unless an allow-list is configured
+- long replies are HTML-escaped and chunked safely for Telegram
+- trade requests are blocked when health is stale, `NO_DATA`, or `MARKET_CLOSED`
+- trade requests are heartbeat-gated and policy-gated through `.dexter/gateway.json`
+- write confirmations are audited to `.dexter/telegram-trade-audit.jsonl`
+- daily Telegram usage / confirmed-trade counters are persisted in `.dexter/telegram-safety.json`
+
+### Local dev runtime
+
+- `bun run gateway` starts the Telegram bridge
+- `python3 /Users/keespronk/Python_Dev/algotrader/monitor_server.py --host 127.0.0.1 --port 8787` provides the local AlgoTrader REST surface used by the bridge
+- this bridge is now validated for:
+  - Telegram chat end-to-end
+  - positions / health / signals / trades read flows
+  - guarded trade-request refusal when market/health policy is unsafe
+
+### Known remaining live proof
+
+- the open-market happy path for `Confirm trade` still needs to be proven while AlgoTrader health is fresh and `session_state == MARKET_OPEN`
 
 ## 1. Environment & API Key Setup
 Created the `.env` file (from `env.example`) and populated it to enable Dexter's advanced autonomous features:
@@ -47,5 +89,4 @@ Created the `.env` file (from `env.example`) and populated it to enable Dexter's
   - **≤ 4 steps left** → `🔶 Start wrapping up`
   - **≤ 2 steps left** → `⚠️ You MUST deliver your final answer NOW`
 - **Result:** The 10-iteration cap stays the same (no extra token spend), but the agent converges on a final answer instead of running out of runway.
-
 
