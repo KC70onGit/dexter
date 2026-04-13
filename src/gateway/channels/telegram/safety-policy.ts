@@ -7,7 +7,29 @@ import { buildHeartbeatQuery } from '../../heartbeat/prompt.js';
 import { dexterPath } from '../../../utils/paths.js';
 
 type SafetyState = {
-  days: Record<string, { totalTokens: number; confirmedTradeRequests: number; updatedAt: string }>;
+  days: Record<
+    string,
+    {
+      totalTokens: number;
+      inputTokens: number;
+      outputTokens: number;
+      handledChatCommands: number;
+      confirmedTradeRequests: number;
+      updatedAt: string;
+    }
+  >;
+};
+
+type DailySafetyBucket = SafetyState['days'][string];
+
+const TELEGRAM_COST_REPORT_EVERY = 10;
+
+const MODEL_PRICING_USD_PER_MILLION: Record<
+  string,
+  { input: number; output: number }
+> = {
+  'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 },
+  'gemini-3-flash-preview': { input: 0.50, output: 3.00 },
 };
 
 function getSafetyStatePath(): string {
@@ -51,15 +73,31 @@ function saveSafetyState(state: SafetyState): void {
 function getTodayBucket(cfg: GatewayConfig, state?: SafetyState): {
   key: string;
   state: SafetyState;
-  bucket: { totalTokens: number; confirmedTradeRequests: number; updatedAt: string };
+  bucket: DailySafetyBucket;
 } {
   const nextState = state ?? loadSafetyState();
-  const key = getDateKey(cfg.safety.dailyTokenBudget.timezone);
+  return getBucketForDateKey(getDateKey(cfg.safety.dailyTokenBudget.timezone), nextState);
+}
+
+function getBucketForDateKey(key: string, state?: SafetyState): {
+  key: string;
+  state: SafetyState;
+  bucket: DailySafetyBucket;
+} {
+  const nextState = state ?? loadSafetyState();
   const bucket = nextState.days[key] ?? {
     totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    handledChatCommands: 0,
     confirmedTradeRequests: 0,
     updatedAt: new Date().toISOString(),
   };
+  bucket.totalTokens = bucket.totalTokens ?? 0;
+  bucket.inputTokens = bucket.inputTokens ?? 0;
+  bucket.outputTokens = bucket.outputTokens ?? 0;
+  bucket.handledChatCommands = bucket.handledChatCommands ?? 0;
+  bucket.confirmedTradeRequests = bucket.confirmedTradeRequests ?? 0;
   nextState.days[key] = bucket;
   return { key, state: nextState, bucket };
 }
@@ -70,13 +108,64 @@ export function recordTelegramTokenUsage(params: {
 }): void {
   const cfg = resolveConfig(params.config);
   const totalTokens = params.tokenUsage?.totalTokens ?? 0;
-  if (!cfg.safety.dailyTokenBudget.enabled || totalTokens <= 0) {
+  if (totalTokens <= 0) {
     return;
   }
   const { state, bucket } = getTodayBucket(cfg);
   bucket.totalTokens += totalTokens;
+  bucket.inputTokens += params.tokenUsage?.inputTokens ?? 0;
+  bucket.outputTokens += params.tokenUsage?.outputTokens ?? 0;
   bucket.updatedAt = new Date().toISOString();
   saveSafetyState(state);
+}
+
+function formatUsdEstimate(value: number): string {
+  if (value >= 1) {
+    return `$${value.toFixed(2)}`;
+  }
+  if (value >= 0.1) {
+    return `$${value.toFixed(3)}`;
+  }
+  return `$${value.toFixed(4)}`;
+}
+
+function estimateDailyTelegramCostUsd(bucket: DailySafetyBucket, modelId: string): number | null {
+  const pricing = MODEL_PRICING_USD_PER_MILLION[modelId];
+  if (!pricing) {
+    return null;
+  }
+
+  return (
+    (bucket.inputTokens / 1_000_000) * pricing.input
+    + (bucket.outputTokens / 1_000_000) * pricing.output
+  );
+}
+
+export function recordTelegramHandledChatAndMaybeGetCostEstimate(params: {
+  modelId: string;
+  config?: GatewayConfig;
+}): string | null {
+  const cfg = resolveConfig(params.config);
+  const { state, bucket } = getTodayBucket(cfg);
+  bucket.handledChatCommands += 1;
+  bucket.updatedAt = new Date().toISOString();
+  saveSafetyState(state);
+
+  // [FIX-179] Attach a lightweight running cost estimate every 10 Telegram chats.
+  if (bucket.handledChatCommands % TELEGRAM_COST_REPORT_EVERY !== 0) {
+    return null;
+  }
+
+  const estimatedCostUsd = estimateDailyTelegramCostUsd(bucket, params.modelId);
+  const costText = estimatedCostUsd === null
+    ? 'cost estimate unavailable for the current model'
+    : `${formatUsdEstimate(estimatedCostUsd)} today`;
+
+  return [
+    'Cost estimate:',
+    `${costText} after ${bucket.handledChatCommands} Telegram chats today.`,
+    `Recorded usage: ${bucket.inputTokens.toLocaleString()} input + ${bucket.outputTokens.toLocaleString()} output tokens.`,
+  ].join(' ');
 }
 
 export function assertTelegramDailyBudget(params?: { config?: GatewayConfig }): void {

@@ -7,6 +7,7 @@ import {
   assertTelegramDailyBudget,
   assertTelegramTradePolicy,
   recordConfirmedTradeRequest,
+  recordTelegramHandledChatAndMaybeGetCostEstimate,
   recordTelegramTokenUsage,
 } from './safety-policy.js';
 
@@ -82,5 +83,28 @@ describe('telegram safety policy', () => {
     recordConfirmedTradeRequest({ config: cfg });
 
     await expect(assertTelegramTradePolicy({ config: cfg })).rejects.toThrow('Daily trade-request limit reached');
+  });
+
+  test('returns a running cost estimate every tenth Telegram chat', () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'dexter-safety-'));
+    process.env.DEXTER_TELEGRAM_SAFETY_STATE_PATH = join(tempDir, 'telegram-safety.json');
+
+    const cfg = buildConfig();
+    recordTelegramTokenUsage({
+      config: cfg,
+      tokenUsage: { inputTokens: 1000, outputTokens: 500, totalTokens: 1500 },
+    });
+
+    let estimate: string | null = null;
+    for (let i = 0; i < 10; i += 1) {
+      estimate = recordTelegramHandledChatAndMaybeGetCostEstimate({
+        modelId: 'gemini-2.5-flash-lite',
+        config: cfg,
+      });
+    }
+
+    expect(estimate).toContain('Cost estimate:');
+    expect(estimate).toContain('after 10 Telegram chats today');
+    expect(estimate).toContain('1,000 input + 500 output tokens');
   });
 });

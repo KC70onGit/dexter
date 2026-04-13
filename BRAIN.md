@@ -86,7 +86,7 @@ Suggested explicit values:
 Current aligned selection in both dev and prod:
 
 - provider: `google`
-- model: `gemini-3-flash-preview`
+- model: `gemini-2.5-flash-lite`
 
 ## External Dependency
 
@@ -114,6 +114,12 @@ Health interpretation nuance:
 - stale `MARKET_CLOSED` is not treated as proof the exchange is currently closed
 - `NO_DATA` means the monitor has no live session data
 - the health tool now emits `session_state_authoritative` and `market_hours_inference_allowed` so Dexter can say "monitor is stale/offline" instead of overstating exchange status
+
+Telegram cost note:
+
+- the Telegram safety state now tracks input tokens, output tokens, and handled chat count per day
+- every 10 Telegram chats, Dexter appends a lightweight running cost estimate to the reply
+- current estimate logic supports `gemini-2.5-flash-lite` and `gemini-3-flash-preview`
 
 ## Repo Map
 

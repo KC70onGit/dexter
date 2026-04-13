@@ -4,7 +4,11 @@ import {
   confirmPendingTelegramTrade,
   extractTelegramTradeMarker,
 } from './channels/telegram/trade-confirmations.js';
-import { assertTelegramDailyBudget, recordTelegramTokenUsage } from './channels/telegram/safety-policy.js';
+import {
+  assertTelegramDailyBudget,
+  recordTelegramHandledChatAndMaybeGetCostEstimate,
+  recordTelegramTokenUsage,
+} from './channels/telegram/safety-policy.js';
 import { createWhatsAppPlugin } from './channels/whatsapp/plugin.js';
 import { createTelegramPlugin } from './channels/telegram/plugin.js';
 import {
@@ -247,9 +251,20 @@ async function handleInbound(cfg: GatewayConfig, inbound: InboundMessage): Promi
     stopTypingLoop();
 
     if (answer.trim()) {
-      const cleanedAnswer = channelId === 'telegram'
+      let cleanedAnswer = channelId === 'telegram'
         ? cleanMarkdownForTelegram(answer).trim()
         : cleanMarkdownForWhatsApp(answer).trim();
+
+      if (channelId === 'telegram') {
+        const costEstimate = recordTelegramHandledChatAndMaybeGetCostEstimate({
+          modelId: model,
+          config: cfg,
+        });
+        // [FIX-179] Every tenth Telegram chat gets a running cost estimate note.
+        if (costEstimate) {
+          cleanedAnswer = `${cleanedAnswer}\n\n${cleanMarkdownForTelegram(costEstimate)}`.trim();
+        }
+      }
 
       if (channelId === 'telegram') {
         const confirmation = extractTelegramTradeMarker(cleanedAnswer);
