@@ -25,7 +25,10 @@ describe('whatsapp reconnect policy', () => {
           maxAttempts: -2,
         },
       },
-      channels: { whatsapp: { enabled: true, accounts: {}, allowFrom: [] } },
+      channels: {
+        whatsapp: { enabled: true, accounts: {}, allowFrom: [] },
+        telegram: { enabled: true, accounts: {}, allowFrom: [] }
+      },
       bindings: [],
     } satisfies GatewayConfig;
     const resolved = resolveReconnectPolicy(cfg);

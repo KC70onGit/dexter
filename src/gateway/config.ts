@@ -5,6 +5,7 @@ import { normalizeE164 } from './utils.js';
 import { dexterPath } from '../utils/paths.js';
 
 const DEFAULT_GATEWAY_PATH = dexterPath('gateway.json');
+const DEFAULT_USAGE_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const DmPolicySchema = z.enum(['pairing', 'allowlist', 'open', 'disabled']);
 const GroupPolicySchema = z.enum(['open', 'allowlist', 'disabled']);
 const ReconnectSchema = z.object({
@@ -26,6 +27,13 @@ const WhatsAppAccountSchema = z.object({
   sendReadReceipts: z.boolean().optional().default(true),
 });
 
+const TelegramAccountSchema = z.object({
+  name: z.string().optional(),
+  enabled: z.boolean().optional().default(true),
+  botToken: z.string().optional(),
+  allowFrom: z.array(z.string()).optional().default([]),
+});
+
 const HeartbeatConfigSchema = z
   .object({
     enabled: z.boolean().optional().default(false),
@@ -42,6 +50,25 @@ const HeartbeatConfigSchema = z
     model: z.string().optional(),
     modelProvider: z.string().optional(),
     maxIterations: z.number().optional().default(6),
+  })
+  .optional();
+
+const SafetyConfigSchema = z
+  .object({
+    dailyTokenBudget: z
+      .object({
+        enabled: z.boolean().optional().default(true),
+        maxTokens: z.number().min(1000).optional().default(250000),
+        timezone: z.string().optional().default(DEFAULT_USAGE_TIMEZONE),
+      })
+      .optional(),
+    tradeRequests: z
+      .object({
+        enabled: z.boolean().optional().default(false),
+        requireHeartbeat: z.boolean().optional().default(true),
+        maxDailyRequests: z.number().int().min(1).optional().default(10),
+      })
+      .optional(),
   })
   .optional();
 
@@ -64,6 +91,13 @@ const GatewayConfigSchema = z.object({
           allowFrom: z.array(z.string()).optional(),
         })
         .optional(),
+      telegram: z
+        .object({
+          enabled: z.boolean().optional(),
+          accounts: z.record(z.string(), TelegramAccountSchema).optional(),
+          allowFrom: z.array(z.string()).optional(),
+        })
+        .optional(),
     })
     .optional(),
   bindings: z
@@ -80,6 +114,7 @@ const GatewayConfigSchema = z.object({
     )
     .optional()
     .default([]),
+  safety: SafetyConfigSchema,
 });
 
 export type GatewayConfig = {
@@ -109,6 +144,11 @@ export type GatewayConfig = {
       accounts: Record<string, z.infer<typeof WhatsAppAccountSchema>>;
       allowFrom: string[];
     };
+    telegram: {
+      enabled: boolean;
+      accounts: Record<string, z.infer<typeof TelegramAccountSchema>>;
+      allowFrom: string[];
+    };
   };
   bindings: Array<{
     agentId: string;
@@ -119,6 +159,18 @@ export type GatewayConfig = {
       peerKind?: 'direct' | 'group';
     };
   }>;
+  safety: {
+    dailyTokenBudget: {
+      enabled: boolean;
+      maxTokens: number;
+      timezone: string;
+    };
+    tradeRequests: {
+      enabled: boolean;
+      requireHeartbeat: boolean;
+      maxDailyRequests: number;
+    };
+  };
 };
 export type WhatsAppAccountConfig = {
   accountId: string;
@@ -132,6 +184,14 @@ export type WhatsAppAccountConfig = {
   sendReadReceipts: boolean;
 };
 
+export type TelegramAccountConfig = {
+  accountId: string;
+  name?: string;
+  enabled: boolean;
+  botToken: string;
+  allowFrom: string[];
+};
+
 export function getGatewayConfigPath(overridePath?: string): string {
   return overridePath ?? process.env.DEXTER_GATEWAY_CONFIG ?? DEFAULT_GATEWAY_PATH;
 }
@@ -141,8 +201,23 @@ export function loadGatewayConfig(overridePath?: string): GatewayConfig {
   if (!existsSync(path)) {
     return {
       gateway: { accountId: 'default', logLevel: 'info' },
-      channels: { whatsapp: { enabled: true, accounts: {}, allowFrom: [] } },
+      channels: { 
+        whatsapp: { enabled: true, accounts: {}, allowFrom: [] },
+        telegram: { enabled: true, accounts: {}, allowFrom: [] },
+      },
       bindings: [],
+      safety: {
+        dailyTokenBudget: {
+          enabled: true,
+          maxTokens: 250000,
+          timezone: DEFAULT_USAGE_TIMEZONE,
+        },
+        tradeRequests: {
+          enabled: false,
+          requireHeartbeat: true,
+          maxDailyRequests: 10,
+        },
+      },
     };
   }
   const raw = readFileSync(path, 'utf8');
@@ -171,8 +246,25 @@ export function loadGatewayConfig(overridePath?: string): GatewayConfig {
         accounts: parsed.channels?.whatsapp?.accounts ?? {},
         allowFrom: parsed.channels?.whatsapp?.allowFrom ?? [],
       },
+      telegram: {
+        enabled: parsed.channels?.telegram?.enabled ?? true,
+        accounts: parsed.channels?.telegram?.accounts ?? {},
+        allowFrom: parsed.channels?.telegram?.allowFrom ?? [],
+      },
     },
     bindings: parsed.bindings ?? [],
+    safety: {
+      dailyTokenBudget: {
+        enabled: parsed.safety?.dailyTokenBudget?.enabled ?? true,
+        maxTokens: parsed.safety?.dailyTokenBudget?.maxTokens ?? 250000,
+        timezone: parsed.safety?.dailyTokenBudget?.timezone ?? DEFAULT_USAGE_TIMEZONE,
+      },
+      tradeRequests: {
+        enabled: parsed.safety?.tradeRequests?.enabled ?? false,
+        requireHeartbeat: parsed.safety?.tradeRequests?.requireHeartbeat ?? true,
+        maxDailyRequests: parsed.safety?.tradeRequests?.maxDailyRequests ?? 10,
+      },
+    },
   };
 }
 
@@ -219,3 +311,31 @@ export function resolveWhatsAppAccount(
   };
 }
 
+export function listTelegramAccountIds(cfg: GatewayConfig): string[] {
+  const accounts = cfg.channels.telegram.accounts ?? {};
+  const ids = Object.keys(accounts);
+  return ids.length > 0 ? ids : [cfg.gateway.accountId];
+}
+
+export function resolveTelegramAccount(
+  cfg: GatewayConfig,
+  accountId: string,
+): TelegramAccountConfig {
+  const account = cfg.channels.telegram.accounts?.[accountId] ?? {};
+  const botToken = account.botToken ?? process.env.TELEGRAM_BOT_TOKEN ?? '';
+  const rawAllowFrom = account.allowFrom ?? cfg.channels.telegram.allowFrom ?? [];
+  const allowFrom = Array.from(
+    new Set(
+      rawAllowFrom
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  );
+  return {
+    accountId,
+    enabled: account.enabled ?? true,
+    name: account.name,
+    botToken: botToken.trim(),
+    allowFrom,
+  };
+}

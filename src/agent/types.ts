@@ -50,6 +50,11 @@ export interface AgentConfig {
   channel?: string;
   /** Group chat context — when set, adds group-specific instructions to system prompt */
   groupContext?: GroupContext;
+  /** Channel runtime metadata that the agent may need for tool calls on live transports. */
+  channelContext?: {
+    telegramChatId?: string;
+    telegramUserId?: string;
+  };
   /** Called when a tool needs explicit user approval to proceed */
   requestToolApproval?: (request: { tool: string; args: Record<string, unknown> }) => Promise<ApprovalDecision>;
   /** Shared set of tool names that have been session-approved (persists across queries) */

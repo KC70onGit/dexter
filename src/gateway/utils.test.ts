@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { cleanMarkdownForWhatsApp, isSelfChatMode, normalizeE164, toWhatsappJid } from './utils.js';
+import {
+  chunkTelegramHtml,
+  cleanMarkdownForTelegram,
+  cleanMarkdownForWhatsApp,
+  isSelfChatMode,
+  normalizeE164,
+  stripTelegramHtml,
+  toWhatsappJid,
+} from './utils.js';
 
 describe('gateway utils', () => {
   describe('normalizeE164', () => {
@@ -61,6 +69,31 @@ describe('gateway utils', () => {
     });
   });
 
+  describe('cleanMarkdownForTelegram', () => {
+    test('escapes raw html and maps simple markdown to telegram html', () => {
+      expect(cleanMarkdownForTelegram('Use **AAPL** < 200 and *watch* it')).toBe(
+        'Use <b>AAPL</b> &lt; 200 and <i>watch</i> it',
+      );
+    });
+  });
+
+  describe('chunkTelegramHtml', () => {
+    test('keeps each chunk under the limit and preserves text content', () => {
+      const input = '<b>Hello world</b> '.repeat(20).trim();
+      const chunks = chunkTelegramHtml(input, 40);
+      expect(chunks.length).toBeGreaterThan(1);
+      for (const chunk of chunks) {
+        expect(chunk.length).toBeLessThanOrEqual(40);
+        expect((chunk.match(/<b>/g) ?? []).length).toBe((chunk.match(/<\/b>/g) ?? []).length);
+      }
+      expect(chunks.map(stripTelegramHtml).join('')).toBe(stripTelegramHtml(input));
+    });
+
+    test('falls back to plain text safely when html tags are stripped', () => {
+      expect(stripTelegramHtml('<b>Signal</b> <i>ready</i>')).toBe('Signal ready');
+    });
+  });
+
   describe('toWhatsappJid', () => {
     test('returns group JIDs as-is', () => {
       expect(toWhatsappJid('12345-67890@g.us')).toBe('12345-67890@g.us');
@@ -84,4 +117,3 @@ describe('gateway utils', () => {
     });
   });
 });
-

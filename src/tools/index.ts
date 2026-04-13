@@ -3,6 +3,7 @@ export { getToolRegistry, getTools, buildCompactToolDescriptions } from './regis
 export type { RegisteredTool } from './registry.js';
 
 // Individual tool exports (for backward compatibility and direct access)
+export { AlgoTraderGatewayClient } from './algotrader/index.js';
 export { createGetFinancials } from './finance/index.js';
 export { tavilySearch } from './search/index.js';
 

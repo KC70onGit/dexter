@@ -1,0 +1,7 @@
+"screening". (ook)
+
+Search good short setups with: ticker price  >=5 and <50 , market cap between   
+50M and 200M, daily vol at min 900K, rel. volume at min. 0.9
+
+Search good short setups with: ticker price  >=5 and <50 , market cap between   
+50M and 500M, daily vol at min 900K, rel. volume at min. 0.9

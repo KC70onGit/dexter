@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api, stripFieldsDeep } from './api.js';
+import { api, stripFieldsDeep } from './free-api.js';
 import { formatToolResult } from '../types.js';
 import { TTL_24H } from './utils.js';
 

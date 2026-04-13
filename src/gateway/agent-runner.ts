@@ -69,6 +69,10 @@ export type AgentRunRequest = {
   isolatedSession?: boolean;
   channel?: string;
   groupContext?: GroupContext;
+  channelContext?: {
+    telegramChatId?: string;
+    telegramUserId?: string;
+  };
 };
 
 export async function runAgentForMessage(req: AgentRunRequest): Promise<string> {
@@ -89,6 +93,7 @@ export async function runAgentForMessage(req: AgentRunRequest): Promise<string> 
       signal: req.signal,
       channel: req.channel,
       groupContext: req.groupContext,
+      channelContext: req.channelContext,
       memoryEnabled: !isolated,
       messageQueue: session?.queue,
     });
@@ -113,6 +118,7 @@ export async function runAgentForMessage(req: AgentRunRequest): Promise<string> 
         signal: req.signal,
         channel: req.channel,
         groupContext: req.groupContext,
+        channelContext: req.channelContext,
         memoryEnabled: !isolated,
         messageQueue: session.queue,
       });

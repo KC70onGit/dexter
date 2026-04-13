@@ -1,4 +1,4 @@
-export type ChannelId = 'whatsapp';
+export type ChannelId = 'whatsapp' | 'telegram';
 
 export type ChannelRuntimeSnapshot = {
   accountId: string;
@@ -45,4 +45,3 @@ export type ChannelPlugin<TConfig, TAccount> = {
     defaultRuntime?: ChannelRuntimeSnapshot;
   };
 };
-
