@@ -27,6 +27,10 @@ require_plist() {
   fi
 }
 
+is_loaded() {
+  launchctl print "${DOMAIN}/${LABEL}" >/dev/null 2>&1
+}
+
 case "${1:-}" in
   install)
     require_plist
@@ -46,8 +50,9 @@ case "${1:-}" in
     require_plist
     mkdir -p /Users/keespronk/Library/LaunchAgents
     cp "${SOURCE_PLIST}" "${TARGET_PLIST}"
-    launchctl bootout "${DOMAIN}/${LABEL}" >/dev/null 2>&1 || true
-    launchctl bootstrap "${DOMAIN}" "${TARGET_PLIST}"
+    if ! is_loaded; then
+      launchctl bootstrap "${DOMAIN}" "${TARGET_PLIST}"
+    fi
     launchctl kickstart -k "${DOMAIN}/${LABEL}"
     ;;
   uninstall)
