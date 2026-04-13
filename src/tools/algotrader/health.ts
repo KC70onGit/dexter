@@ -8,6 +8,7 @@ Read the current AlgoTrader health snapshot.
 
 Use this before making claims about live state or before any write flow.
 If the result is stale or session_state is NO_DATA, treat live trading context as degraded.
+If session_state_authoritative is false, do not claim the market is definitely open or closed from this snapshot alone.
 `.trim();
 
 export function createAlgoTraderHealthTool(): DynamicStructuredTool {

@@ -13,6 +13,8 @@ type HealthResponse = {
   signals_total?: number;
 };
 
+type HealthMonitorState = 'fresh' | 'stale' | 'no_data';
+
 type AutotradeStatusResponse = {
   ok?: boolean;
   autotrade_enabled?: boolean;
@@ -62,6 +64,75 @@ function deriveStaleness(updatedAt: string | null | undefined, maxAgeSeconds: nu
     return true;
   }
   return Date.now() - timestampMs > maxAgeSeconds * 1000;
+}
+
+function normalizeSessionState(sessionState: string | null | undefined): string | null {
+  const normalized = sessionState?.trim().toUpperCase();
+  return normalized || null;
+}
+
+function deriveHealthInterpretation(sessionState: string | null, stale: boolean): {
+  monitorState: HealthMonitorState;
+  sessionStateAuthoritative: boolean;
+  marketHoursInferenceAllowed: boolean;
+  operatorGuidance: string;
+} {
+  if (sessionState === 'NO_DATA') {
+    return {
+      monitorState: 'no_data',
+      sessionStateAuthoritative: false,
+      marketHoursInferenceAllowed: false,
+      operatorGuidance:
+        'AlgoTrader has no live session data. Treat the monitor as unavailable; this does not prove the exchange is open or closed.',
+    };
+  }
+
+  if (stale && sessionState === 'MARKET_CLOSED') {
+    return {
+      monitorState: 'stale',
+      sessionStateAuthoritative: false,
+      marketHoursInferenceAllowed: false,
+      operatorGuidance:
+        'AlgoTrader last reported MARKET_CLOSED, but the snapshot is stale. Treat this as a stale monitor/offline signal, not proof of current exchange hours.',
+    };
+  }
+
+  if (stale) {
+    return {
+      monitorState: 'stale',
+      sessionStateAuthoritative: false,
+      marketHoursInferenceAllowed: false,
+      operatorGuidance:
+        'AlgoTrader health is stale. Any reported session_state may be outdated, so live market status is unknown until the monitor refreshes.',
+    };
+  }
+
+  if (sessionState === 'MARKET_CLOSED') {
+    return {
+      monitorState: 'fresh',
+      sessionStateAuthoritative: true,
+      marketHoursInferenceAllowed: true,
+      operatorGuidance: 'Fresh monitor snapshot says MARKET_CLOSED.',
+    };
+  }
+
+  if (sessionState === 'LIVE') {
+    return {
+      monitorState: 'fresh',
+      sessionStateAuthoritative: true,
+      marketHoursInferenceAllowed: true,
+      operatorGuidance: 'Fresh monitor snapshot says LIVE.',
+    };
+  }
+
+  return {
+    monitorState: 'fresh',
+    sessionStateAuthoritative: true,
+    marketHoursInferenceAllowed: true,
+    operatorGuidance: sessionState
+      ? `Fresh monitor snapshot says ${sessionState}.`
+      : 'Fresh monitor snapshot is missing session_state.',
+  };
 }
 
 async function parseJson(response: Response): Promise<unknown> {
@@ -171,15 +242,24 @@ export class AlgoTraderGatewayClient {
 
   async getHealth(): Promise<AlgoTraderEnvelope<Record<string, unknown>>> {
     const payload = (await this.request('/api/health')) as HealthResponse;
+    const sessionState = normalizeSessionState(payload.session_state ?? null);
+    const stale =
+      sessionState === 'NO_DATA'
+      || deriveStaleness(payload.updated_at ?? null, 30);
+    // FIX-178: stale or NO_DATA health should degrade confidence in live state,
+    // not be treated as definitive evidence of current market hours.
+    const interpretation = deriveHealthInterpretation(sessionState, stale);
     return {
       source: 'health',
       updated_at: payload.updated_at ?? null,
-      stale:
-        payload.session_state === 'NO_DATA'
-        || deriveStaleness(payload.updated_at ?? null, 30),
+      stale,
       data: {
-        session_state: payload.session_state ?? null,
+        session_state: sessionState,
         signals_total: payload.signals_total ?? 0,
+        monitor_state: interpretation.monitorState,
+        session_state_authoritative: interpretation.sessionStateAuthoritative,
+        market_hours_inference_allowed: interpretation.marketHoursInferenceAllowed,
+        operator_guidance: interpretation.operatorGuidance,
       },
     };
   }

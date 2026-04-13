@@ -59,7 +59,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       name: 'algotrader_health',
       tool: createAlgoTraderHealthTool(),
       description: ALGOTRADER_HEALTH_DESCRIPTION,
-      compactDescription: 'Read live AlgoTrader health and freshness before making claims about current state.',
+      compactDescription: 'Read live AlgoTrader health and freshness before making claims about current state. Treat non-authoritative session_state as a stale monitor signal, not exchange-hours proof.',
       concurrencySafe: true,
     },
     {
