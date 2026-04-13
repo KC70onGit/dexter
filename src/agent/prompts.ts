@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getChannelProfile } from './channels.js';
 import { dexterPath } from '../utils/paths.js';
+import { getRuntimeIdentity } from '../utils/runtime-identity.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -227,6 +228,7 @@ export function buildSystemPrompt(
 ): string {
   const toolDescriptions = buildCompactToolDescriptions(model);
   const profile = getChannelProfile(channel);
+  const runtimeIdentity = getRuntimeIdentity();
 
   const behaviorBullets = profile.behavior.map(b => `- ${b}`).join('\n');
   const formatBullets = profile.responseFormat.map(b => `- ${b}`).join('\n');
@@ -250,11 +252,22 @@ ${toolDescriptions}
 - Call get_financials or get_market_data ONCE with the full natural language query — they handle multi-company/multi-metric requests internally. Do NOT break up queries into multiple calls.
 - Only use web_fetch when headlines are insufficient (need quotes, deal specifics, earnings details).
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
+- When algotrader_health says session_state_authoritative=false, interpret that as a stale or unavailable monitor. Do not claim the market is definitely open or closed from that snapshot alone.
 - Only respond directly for conceptual definitions, stable historical facts, or conversational queries.
 
 ${buildSkillsSection()}
 
 ${buildMemorySection(memoryFiles ?? [], memoryContext)}
+
+## Runtime Identity
+
+- Environment name: ${runtimeIdentity.name}
+- Environment role: ${runtimeIdentity.role}
+- Repo path: ${runtimeIdentity.repoPath}
+- Identity source: ${runtimeIdentity.source}
+${runtimeIdentity.notes ? `- Notes: ${runtimeIdentity.notes}` : ''}
+
+If the user asks which environment, checkout, runtime, dev/prod instance, or service they are talking to, answer from this section exactly and include the repo path. Do not guess or invent a different environment.
 
 ${channelContext?.telegramChatId || channelContext?.telegramUserId ? `## Live Channel Context
 
@@ -292,5 +305,3 @@ ${formatBullets}${tablesSection}${groupContext ? '\n\n' + buildGroupSection(grou
 // ============================================================================
 // User Prompts
 // ============================================================================
-
-

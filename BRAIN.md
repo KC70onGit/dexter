@@ -1,91 +1,163 @@
-# How to Run Dexter
+# Dexter-Telegram BRAIN
+
+This repo is the dedicated `dexter-telegram` checkout for the Telegram trading-buddy bridge.
+It is separate from the main AlgoTrader repo and should be treated as its own app/runtime.
+
+## What This Repo Runs
+
+There are two practical run modes:
+
+1. `bun run start`
+   Starts the standard Dexter interactive app.
+   This is not the Telegram bot process.
+
+2. `bun run gateway`
+   Starts the Telegram/WhatsApp gateway runtime.
+   This is the command that runs the `dexter-telegram` bot.
+
+For development:
 
 ```bash
-cd <dexter-telegram-repo>
-bun run start
-```
-
-```bash
-Telegram Gateway
-cd <dexter-telegram-repo>
-bun run gateway
-```
-
-
-For **watch mode** (auto-restarts on file changes):
-```bash
+cd /Users/keespronk/Python_Dev/dexter-telegram
 bun run dev
 ```
 
----
+That auto-restarts on file changes, but it is still a foreground process.
 
-# Dexter: Local Customizations & Fixes
+## Start And Stop Model
 
-> **⚠️ NOTE: This is the Telegram Bridge checkout (`dexter-telegram`).**
-> **Use the active environment's repo root, not a hardcoded absolute path.**
+This repo does not currently ship with a built-in service manager, launchd plist, systemd unit, or PM2 config.
 
-This document tracks local modifications made to the clean Dexter GitHub pull to ensure things run smoothly and API keys are fully functional.
+Current operating model:
 
-## Telegram Trading Buddy Bridge (FIX-177)
+- Run `bun run gateway` in its own terminal when you want the Telegram bot online.
+- Stop it with `Ctrl+C`.
+- For long-lived sessions, a dedicated terminal or `tmux` session is the safest default.
+- If you later want this to survive logouts/reboots, we should add a real service wrapper explicitly.
 
-This checkout now carries the Telegram bridge work for the AlgoTrader trading-buddy plan.
+Recommended split with one Telegram token:
 
-- Telegram transport lives under `src/gateway/channels/telegram/`
-- local gateway config is `.dexter/gateway.json`
-- the live bot token is read from `.env` / `TELEGRAM_BOT_TOKEN`
-- read-only AlgoTrader tools live under `src/tools/algotrader/`
-- guarded write preparation uses Telegram inline confirmation buttons and then POSTs to Python-owned `/api/trade`
+- prod checkout runs as the only normal live bot
+- dev checkout stays manual/terminal-only
+- never run dev and prod at the same time on one shared token
 
-### Current safety model
+Recommended mental model:
 
-- Telegram inbound access is fail-closed unless an allow-list is configured
-- long replies are HTML-escaped and chunked safely for Telegram
-- trade requests are blocked when health is stale, `NO_DATA`, or `MARKET_CLOSED`
-- trade requests are heartbeat-gated and policy-gated through `.dexter/gateway.json`
-- write confirmations are audited to `.dexter/telegram-trade-audit.jsonl`
-- daily Telegram usage / confirmed-trade counters are persisted in `.dexter/telegram-safety.json`
+- `bun run start` = local interactive Dexter
+- `bun run gateway` = live messaging bot
+- `./scripts/prod_service.sh ...` = prod launchd lifecycle wrapper
 
-### Local dev runtime
+## Required Runtime Inputs
 
-- `bun run gateway` starts the Telegram bridge
-- from the `dexter-telegram` repo root, `python3 ../algotrader/monitor_server.py --host 127.0.0.1 --port 8787` provides the local AlgoTrader REST surface used by the bridge when `algotrader` is checked out as a sibling repo
-- this bridge is now validated for:
-  - Telegram chat end-to-end
-  - positions / health / signals / trades read flows
-  - guarded trade-request refusal when market/health policy is unsafe
+Required local pieces:
 
-### Known remaining live proof
+- `.env`
+- `.dexter/gateway.json`
+- `.dexter/telegram-safety.json`
 
-- the open-market happy path for `Confirm trade` still needs to be proven while AlgoTrader health is fresh and `session_state == MARKET_OPEN`
+Important env/config expectations:
 
-## 1. Environment & API Key Setup
-Created the `.env` file (from `env.example`) and populated it to enable Dexter's advanced autonomous features:
-- **`EXASEARCH_API_KEY`**: Enabled live web search for gathering news and macro-economic data.
-- **`FINANCIAL_DATASETS_API_KEY`**: Specified for financial dataset access. *(Note: See point 3 regarding how the codebase currently handles this).*
-- **`X_BEARER_TOKEN`**: Enabled the `x_search` tool for real-time Twitter/X sentiment analysis and social insights.
+- `TELEGRAM_BOT_TOKEN` is read from `.env`
+- `ALGOTRADER_BASE_URL` defaults to `http://127.0.0.1:8787`
+- `DEXTER_GATEWAY_CONFIG` is optional and defaults to `.dexter/gateway.json`
+- `DEXTER_TELEGRAM_SAFETY_STATE_PATH` is optional and defaults to `.dexter/telegram-safety.json`
+- `DEXTER_RUNTIME_NAME` and `DEXTER_RUNTIME_ROLE` are optional explicit identity labels shown in the agent prompt when users ask whether they are talking to dev or prod
+- if `.dexter/settings.json` does not exist yet, Dexter now auto-picks the first provider with a configured API key instead of assuming OpenAI
 
-## 2. Bug Fix: Initializing `yahoo-finance2` (v3 Upgrade)
-**File changed:** `src/tools/finance/free-api.ts`
-- **Issue:** The Dexter repository was attempting to import the `yahoo-finance2` library using a v2 syntactical import (`import yahooFinance from 'yahoo-finance2'`). However, the `package.json` installs `^3.13.2`. This version mismatch caused the application to crash immediately when executing any financial queries.
-- **Fix Applied:** Modified the import statement to properly instantiate the version 3 class instance.
-  ```typescript
-  // Old code:
-  // import yahooFinance from 'yahoo-finance2';
-  
-  // New code:
-  import YahooFinance from 'yahoo-finance2';
-  const yahooFinance = new YahooFinance();
-  ```
+Suggested explicit values:
 
-## 3. Note on Financial Datasets Interception
-**File observed:** `src/tools/finance/free-api.ts`
-- **Behavior:** The upstream Dexter repository recently implemented `free-api.ts` as a hardcoded "Drop-in replacement for financialdatasets.ai API" (marked internally as `FIX-042b: Zero cost, no API keys required`). 
-- **Impact:** Even though `FINANCIAL_DATASETS_API_KEY` is proudly set in `.env`, the system by default currently routes requests (Income statement, Balance Sheet, Cash Flow, etc.) through the `free-api.ts` script—which scrapes Yahoo Finance and SEC EDGAR databases instead of burning through your paid credits at `financialdatasets.ai`.
+- dev checkout:
+  - `DEXTER_RUNTIME_NAME=dev`
+  - `DEXTER_RUNTIME_ROLE=development`
+- prod checkout:
+  - `DEXTER_RUNTIME_NAME=prod`
+  - `DEXTER_RUNTIME_ROLE=production`
 
-## 4. Iteration Budget Awareness (Prompt Fix)
-**Files changed:** `src/agent/agent.ts`, `src/agent/prompts.ts`
-- **Issue:** The agent had no awareness of how many iterations it had used or had remaining. On complex queries it would keep exploring broadly until the hardcoded `maxIterations: 10` cap cut it off, wasting tokens and returning *"Reached maximum iterations…"* with no answer.
-- **Fix Applied:** Injected an iteration budget counter into every iteration prompt (`buildIterationPrompt`). The agent now sees how many steps remain and receives escalating urgency cues:
-  - **≤ 4 steps left** → `🔶 Start wrapping up`
-  - **≤ 2 steps left** → `⚠️ You MUST deliver your final answer NOW`
-- **Result:** The 10-iteration cap stays the same (no extra token spend), but the agent converges on a final answer instead of running out of runway.
+## External Dependency
+
+The bridge expects AlgoTrader's monitor server to be reachable.
+
+Default endpoint:
+
+```text
+http://127.0.0.1:8787
+```
+
+Important endpoints used by the bridge:
+
+- `GET /api/health`
+- `GET /api/positions`
+- `GET /api/signals`
+- `GET /api/trades`
+- `GET /api/chart?ticker=...`
+- `POST /api/trade`
+
+If the health endpoint is stale, `NO_DATA`, or `MARKET_CLOSED`, trade-request writes are blocked by policy.
+
+## Repo Map
+
+Top-level folders that matter operationally:
+
+- `src/gateway/`
+  Transport/runtime layer for Telegram and WhatsApp
+- `src/tools/algotrader/`
+  Typed client/tools for talking to the Python AlgoTrader monitor server
+- `.dexter/`
+  Local runtime state, gateway config, logs, sessions, memory, and safety counters
+- `src/agent/`
+  Agent prompt/runtime logic
+- `src/tools/`
+  General tool registry and implementations
+
+## Telegram Trading Buddy Bridge
+
+Current bridge behavior:
+
+- Telegram transport lives in `src/gateway/channels/telegram/`
+- long replies are cleaned and chunked for Telegram delivery
+- trade requests are staged through Telegram confirmation markers
+- confirmed requests are audited to `.dexter/telegram-trade-audit.jsonl`
+- trade writes are policy-gated by heartbeat and daily limits
+
+## Operational Notes
+
+- If Telegram returns `409 Conflict`, another poller is already using the same bot token.
+- The safest fix is to stop the other process or use a dedicated Telegram bot token for this repo.
+- `bun run typecheck` currently exposes upstream code/test typing issues; that is separate from the gateway's runtime bootability.
+
+## Prod Service
+
+The repo now carries a launchd plist template for prod:
+
+- `ops/launchd/com.keespronk.dexter-telegram.prod.plist`
+
+And a helper wrapper:
+
+- `scripts/prod_service.sh`
+
+Useful commands:
+
+```bash
+cd /Users/keespronk/Python_Dev/dexter-telegram
+./scripts/prod_service.sh install
+./scripts/prod_service.sh status
+./scripts/prod_service.sh stop
+./scripts/prod_service.sh start
+./scripts/prod_service.sh logs
+```
+
+`install` copies the plist into:
+
+- `~/Library/LaunchAgents/com.keespronk.dexter-telegram.prod.plist`
+
+and then bootstraps it from there.
+
+This service points at the prod checkout:
+
+- `/Users/keespronk/Python/dexter-telegram`
+
+## Related BRAIN Files
+
+- [src/gateway/BRAIN.md](src/gateway/BRAIN.md)
+- [src/tools/algotrader/BRAIN.md](src/tools/algotrader/BRAIN.md)
+- [.dexter/BRAIN.md](.dexter/BRAIN.md)

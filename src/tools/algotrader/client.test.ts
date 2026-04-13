@@ -29,6 +29,10 @@ describe('AlgoTraderGatewayClient', () => {
     expect(result.data).toEqual({
       session_state: 'LIVE',
       signals_total: 7,
+      monitor_state: 'fresh',
+      session_state_authoritative: true,
+      market_hours_inference_allowed: true,
+      operator_guidance: 'Fresh monitor snapshot says LIVE.',
     });
   });
 
@@ -47,6 +51,38 @@ describe('AlgoTraderGatewayClient', () => {
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getHealth();
     expect(result.stale).toBe(true);
+    expect(result.data).toMatchObject({
+      session_state: 'NO_DATA',
+      monitor_state: 'no_data',
+      session_state_authoritative: false,
+      market_hours_inference_allowed: false,
+    });
+  });
+
+  test('treats stale MARKET_CLOSED as non-authoritative monitor state', async () => {
+    const staleTimestamp = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          updated_at: staleTimestamp,
+          session_state: 'MARKET_CLOSED',
+          signals_total: 0,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as typeof fetch;
+
+    const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
+    const result = await client.getHealth();
+
+    expect(result.stale).toBe(true);
+    expect(result.data).toMatchObject({
+      session_state: 'MARKET_CLOSED',
+      monitor_state: 'stale',
+      session_state_authoritative: false,
+      market_hours_inference_allowed: false,
+    });
+    expect(String(result.data.operator_guidance)).toContain('not proof of current exchange hours');
   });
 
   test('passes include_sim to the trades endpoint only when requested', async () => {

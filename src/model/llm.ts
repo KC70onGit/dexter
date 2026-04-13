@@ -14,9 +14,13 @@ import type { TokenUsage } from '@/agent/types';
 import { logger } from '@/utils';
 import { classifyError, isNonRetryableError } from '@/utils/errors';
 import { resolveProvider, getProviderById } from '@/providers';
+import { getRuntimeDefaultModelSelection } from '@/utils/model-defaults';
+import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
 
-export const DEFAULT_PROVIDER = 'openai';
-export const DEFAULT_MODEL = 'gpt-5.4';
+const runtimeDefaults = getRuntimeDefaultModelSelection();
+
+export const DEFAULT_PROVIDER = runtimeDefaults.provider;
+export const DEFAULT_MODEL = runtimeDefaults.modelId;
 
 /**
  * Gets the fast model variant for the given provider.
@@ -129,6 +133,53 @@ const DEFAULT_FACTORY: ModelFactory = (name, opts) =>
     apiKey: getApiKey('OPENAI_API_KEY'),
   });
 
+function stripUnsupportedGoogleSchemaKeywords(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripUnsupportedGoogleSchemaKeywords);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const cleaned: Record<string, unknown> = {};
+
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (key === 'exclusiveMinimum' || key === 'exclusiveMaximum') {
+      continue;
+    }
+    if (key === 'const') {
+      cleaned.enum = [child];
+      continue;
+    }
+    cleaned[key] = stripUnsupportedGoogleSchemaKeywords(child);
+  }
+
+  return cleaned;
+}
+
+function getBindableTools(modelName: string, tools?: StructuredToolInterface[]) {
+  if (!tools || tools.length === 0) {
+    return tools;
+  }
+
+  const provider = resolveProvider(modelName);
+  if (provider.id !== 'google') {
+    return tools;
+  }
+
+  return tools.map((tool) => {
+    const openAiTool = convertToOpenAITool(tool);
+    return {
+      ...openAiTool,
+      function: {
+        ...openAiTool.function,
+        parameters: stripUnsupportedGoogleSchemaKeywords(openAiTool.function.parameters),
+      },
+    };
+  });
+}
+
 export function getChatModel(
   modelName: string = DEFAULT_MODEL,
   streaming: boolean = false
@@ -203,6 +254,7 @@ function buildAnthropicMessages(systemPrompt: string, userPrompt: string) {
 export async function callLlm(prompt: string, options: CallLlmOptions = {}): Promise<LlmResult> {
   const { model = DEFAULT_MODEL, systemPrompt, outputSchema, tools, signal } = options;
   const finalSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+  const bindableTools = getBindableTools(model, tools);
 
   const llm = getChatModel(model, false);
 
@@ -211,8 +263,8 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
 
   if (outputSchema) {
     runnable = llm.withStructuredOutput(outputSchema, { strict: false });
-  } else if (tools && tools.length > 0 && llm.bindTools) {
-    runnable = llm.bindTools(tools);
+  } else if (bindableTools && bindableTools.length > 0 && llm.bindTools) {
+    runnable = llm.bindTools(bindableTools);
   }
 
   const invokeOpts = signal ? { signal } : undefined;
@@ -236,7 +288,7 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
 
   // If no outputSchema and no tools, extract content from AIMessage
   // When tools are provided, return the full AIMessage to preserve tool_calls
-  if (!outputSchema && !tools && result && typeof result === 'object' && 'content' in result) {
+  if (!outputSchema && !bindableTools && result && typeof result === 'object' && 'content' in result) {
     return { response: (result as { content: string }).content, usage };
   }
   return { response: result as AIMessage, usage };
@@ -295,14 +347,15 @@ export async function callLlmWithMessages(
   options: CallLlmWithMessagesOptions = {},
 ): Promise<LlmResult> {
   const { model = DEFAULT_MODEL, tools, signal } = options;
+  const bindableTools = getBindableTools(model, tools);
 
   const llm = getChatModel(model, false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
 
-  if (tools && tools.length > 0 && llm.bindTools) {
-    runnable = llm.bindTools(tools);
+  if (bindableTools && bindableTools.length > 0 && llm.bindTools) {
+    runnable = llm.bindTools(bindableTools);
   }
 
   const invokeOpts = signal ? { signal } : undefined;
@@ -338,14 +391,15 @@ export async function* streamLlmWithMessages(
   options: CallLlmWithMessagesOptions = {},
 ): AsyncGenerator<AIMessageChunk, void> {
   const { model = DEFAULT_MODEL, tools, signal } = options;
+  const bindableTools = getBindableTools(model, tools);
 
   const llm = getChatModel(model, true);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
 
-  if (tools && tools.length > 0 && llm.bindTools) {
-    runnable = llm.bindTools(tools);
+  if (bindableTools && bindableTools.length > 0 && llm.bindTools) {
+    runnable = llm.bindTools(bindableTools);
   }
 
   const invokeOpts = signal ? { signal } : undefined;

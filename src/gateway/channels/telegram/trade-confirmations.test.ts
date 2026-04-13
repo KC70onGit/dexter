@@ -145,4 +145,27 @@ describe('telegram trade confirmations', () => {
       amountUsd: 5000,
     })).rejects.toThrow('MARKET_CLOSED');
   });
+
+  test('blocks stale MARKET_CLOSED health as stale monitor state first', async () => {
+    globalThis.fetch = async (input) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.endsWith('/api/health')) {
+        return new Response(JSON.stringify({
+          ok: true,
+          updated_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          session_state: 'MARKET_CLOSED',
+          signals_total: 0,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    };
+
+    await expect(preparePendingTelegramTrade({
+      chatId: 'chat-4',
+      userId: 'user-4',
+      ticker: 'AAPL',
+      side: 'BUY',
+      amountUsd: 5000,
+    })).rejects.toThrow('stale and last reported MARKET_CLOSED');
+  });
 });

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.keespronk.dexter-telegram.prod</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/keespronk/.bun/bin/bun</string>
+    <string>src/gateway/index.ts</string>
+    <string>run</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/keespronk/Python/dexter-telegram</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/keespronk/.bun/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>DEXTER_RUNTIME_NAME</key>
+    <string>prod</string>
+    <key>DEXTER_RUNTIME_ROLE</key>
+    <string>production</string>
+    <key>DEXTER_RUNTIME_NOTES</key>
+    <string>launchd service</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/keespronk/Python/dexter-telegram/.dexter/launchd.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/keespronk/Python/dexter-telegram/.dexter/launchd.stderr.log</string>
+</dict>
+</plist>

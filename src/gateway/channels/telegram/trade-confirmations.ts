@@ -109,14 +109,22 @@ async function assertTradeAllowed(client: AlgoTraderGatewayClient, ticker: strin
   const sessionState = String(health.data.session_state ?? '').trim().toUpperCase();
   // FIX-177: Telegram remains a conversational ingress only; execution requests must
   // fail closed whenever AlgoTrader is stale, closed, or not ready for live writes.
+  if (health.stale) {
+    // FIX-178: stale health should be reported as a stale/offline monitor condition
+    // before any stale session_state like MARKET_CLOSED is treated as authoritative.
+    if (sessionState === 'NO_DATA') {
+      throw new Error('AlgoTrader has no fresh live session data. Trade requests are blocked until the monitor is running and fresh.');
+    }
+    if (sessionState === 'MARKET_CLOSED') {
+      throw new Error('AlgoTrader health is stale and last reported MARKET_CLOSED. Trade requests are blocked until fresh live state returns.');
+    }
+    throw new Error('AlgoTrader health is stale. Trade requests are blocked until live state is fresh.');
+  }
   if (sessionState === 'NO_DATA') {
     throw new Error('AlgoTrader reports NO_DATA. Trade requests are blocked.');
   }
   if (sessionState === 'MARKET_CLOSED') {
     throw new Error('AlgoTrader reports MARKET_CLOSED. Trade requests are blocked until the market is open.');
-  }
-  if (health.stale) {
-    throw new Error('AlgoTrader health is stale. Trade requests are blocked until live state is fresh.');
   }
 
   const autotradeStatus = await client.getAutotradeStatus();
