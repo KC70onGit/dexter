@@ -38,7 +38,7 @@ describe('getRuntimeDefaultModelSelection', () => {
 
     expect(getRuntimeDefaultModelSelection()).toEqual({
       provider: 'google',
-      modelId: 'gemini-3-flash-preview',
+      modelId: 'gemini-2.5-flash-lite',
     });
   });
 
