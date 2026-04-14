@@ -1,11 +1,14 @@
 #!/bin/zsh
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 LABEL="com.keespronk.dexter-telegram.prod"
 UID_VALUE="$(id -u)"
 DOMAIN="gui/${UID_VALUE}"
-SOURCE_PLIST="/Users/keespronk/Python_Dev/dexter-telegram/ops/launchd/${LABEL}.plist"
-TARGET_PLIST="/Users/keespronk/Library/LaunchAgents/${LABEL}.plist"
+SOURCE_PLIST="${REPO_ROOT}/ops/launchd/${LABEL}.plist"
+TARGET_PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
+PROD_DIR="${HOME}/Python/dexter-telegram"
 
 usage() {
   cat <<'EOF'
@@ -34,7 +37,7 @@ is_loaded() {
 case "${1:-}" in
   install)
     require_plist
-    mkdir -p /Users/keespronk/Library/LaunchAgents
+    mkdir -p "${HOME}/Library/LaunchAgents"
     cp "${SOURCE_PLIST}" "${TARGET_PLIST}"
     launchctl bootout "${DOMAIN}/${LABEL}" >/dev/null 2>&1 || true
     launchctl bootstrap "${DOMAIN}" "${TARGET_PLIST}"
@@ -48,7 +51,7 @@ case "${1:-}" in
     ;;
   restart)
     require_plist
-    mkdir -p /Users/keespronk/Library/LaunchAgents
+    mkdir -p "${HOME}/Library/LaunchAgents"
     cp "${SOURCE_PLIST}" "${TARGET_PLIST}"
     if ! is_loaded; then
       launchctl bootstrap "${DOMAIN}" "${TARGET_PLIST}"
@@ -63,7 +66,7 @@ case "${1:-}" in
     launchctl print "${DOMAIN}/${LABEL}"
     ;;
   logs)
-    tail -n 80 /Users/keespronk/Python/dexter-telegram/.dexter/launchd.stdout.log /Users/keespronk/Python/dexter-telegram/.dexter/launchd.stderr.log
+    tail -n 80 "${PROD_DIR}/.dexter/launchd.stdout.log" "${PROD_DIR}/.dexter/launchd.stderr.log"
     ;;
   *)
     usage
