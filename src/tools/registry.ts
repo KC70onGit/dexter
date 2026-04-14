@@ -18,6 +18,18 @@ import { exaSearch, perplexitySearch, tavilySearch, WEB_SEARCH_DESCRIPTION, xSea
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
 import { webFetchTool, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
 import { browserTool, BROWSER_DESCRIPTION } from './browser/browser.js';
+import {
+  dayTradingKbReadTool,
+  dayTradingKbSearchTool,
+  DAYTRADING_KB_READ_DESCRIPTION,
+  DAYTRADING_KB_SEARCH_DESCRIPTION,
+} from './daytrading-kb/index.js';
+import {
+  internalWikiReadTool,
+  internalWikiSearchTool,
+  INTERNAL_WIKI_READ_DESCRIPTION,
+  INTERNAL_WIKI_SEARCH_DESCRIPTION,
+} from './internal-wiki/index.js';
 import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
 import { writeFileTool, WRITE_FILE_DESCRIPTION } from './filesystem/write-file.js';
 import { editFileTool, EDIT_FILE_DESCRIPTION } from './filesystem/edit-file.js';
@@ -137,6 +149,34 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: browserTool,
       description: BROWSER_DESCRIPTION,
       compactDescription: 'JavaScript-rendered pages and interactive navigation. Actions: navigate, snapshot, act, read, close.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'daytrading_kb_search',
+      tool: dayTradingKbSearchTool,
+      description: DAYTRADING_KB_SEARCH_DESCRIPTION,
+      compactDescription: 'Search the local r/Daytrading KB for education, workflow, broker, and psychology guidance.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'daytrading_kb_read',
+      tool: dayTradingKbReadTool,
+      description: DAYTRADING_KB_READ_DESCRIPTION,
+      compactDescription: 'Read a curated or normalized local DayTrading KB document by path.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'internal_wiki_search',
+      tool: internalWikiSearchTool,
+      description: INTERNAL_WIKI_SEARCH_DESCRIPTION,
+      compactDescription: 'Search the local internal engineering wiki for architecture, status, runbooks, and config guidance.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'internal_wiki_read',
+      tool: internalWikiReadTool,
+      description: INTERNAL_WIKI_READ_DESCRIPTION,
+      compactDescription: 'Read a local internal engineering wiki document by path.',
       concurrencySafe: true,
     },
     {

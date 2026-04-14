@@ -6,6 +6,14 @@ export type { RegisteredTool } from './registry.js';
 export { AlgoTraderGatewayClient } from './algotrader/index.js';
 export { createGetFinancials } from './finance/index.js';
 export { tavilySearch } from './search/index.js';
+export {
+  dayTradingKbReadTool,
+  dayTradingKbSearchTool,
+} from './daytrading-kb/index.js';
+export {
+  internalWikiReadTool,
+  internalWikiSearchTool,
+} from './internal-wiki/index.js';
 
 // Tool descriptions
 export {
