@@ -5,12 +5,14 @@ import {
   ALGOTRADER_POSITIONS_DESCRIPTION,
   ALGOTRADER_REQUEST_TRADE_DESCRIPTION,
   ALGOTRADER_SIGNALS_DESCRIPTION,
+  ALGOTRADER_STATUS_DESCRIPTION,
   ALGOTRADER_TRADES_DESCRIPTION,
   createAlgoTraderChartTool,
   createAlgoTraderHealthTool,
   createAlgoTraderPositionsTool,
   createAlgoTraderRequestTradeTool,
   createAlgoTraderSignalsTool,
+  createAlgoTraderStatusTool,
   createAlgoTraderTradesTool,
 } from './algotrader/index.js';
 import { createGetFinancials, createGetMarketData, createReadFilings, createScreenStocks } from './finance/index.js';
@@ -72,6 +74,13 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createAlgoTraderHealthTool(),
       description: ALGOTRADER_HEALTH_DESCRIPTION,
       compactDescription: 'Read live AlgoTrader health and freshness before making claims about current state. Treat non-authoritative session_state as a stale monitor signal, not exchange-hours proof.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'algotrader_status',
+      tool: createAlgoTraderStatusTool(),
+      description: ALGOTRADER_STATUS_DESCRIPTION,
+      compactDescription: 'Read IBKR broker/gateway connectivity. Use for "Is IBKR up?", "Is the engine connected?", or "Can I trade?" questions. Separate from monitor health.',
       concurrencySafe: true,
     },
     {
