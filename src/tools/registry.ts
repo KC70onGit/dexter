@@ -80,7 +80,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       name: 'algotrader_status',
       tool: createAlgoTraderStatusTool(),
       description: ALGOTRADER_STATUS_DESCRIPTION,
-      compactDescription: 'Read IBKR broker/gateway connectivity. Use for "Is IBKR up?", "Is the engine connected?", or "Can I trade?" questions. Separate from monitor health.',
+      compactDescription: 'Read IBKR broker/gateway connectivity. Use for "Is IBKR up?" or "Is the engine connected?"; for "Can I trade?" pair it with algotrader_health.',
       concurrencySafe: true,
     },
     {

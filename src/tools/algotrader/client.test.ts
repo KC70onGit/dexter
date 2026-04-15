@@ -188,8 +188,10 @@ describe('AlgoTraderGatewayClient', () => {
   // ====================================================================
 
   test('getStatus returns connected when gateway reachable and engine connected', async () => {
-    globalThis.fetch = async () =>
-      new Response(
+    const seenUrls: string[] = [];
+    globalThis.fetch = async (input) => {
+      seenUrls.push(typeof input === 'string' ? input : input.url);
+      return new Response(
         JSON.stringify({
           ok: true,
           status: 'online',
@@ -203,10 +205,12 @@ describe('AlgoTraderGatewayClient', () => {
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ) as typeof fetch;
+    };
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getStatus();
 
+    expect(seenUrls).toEqual(['http://127.0.0.1:8787/api/status']);
     expect(result.source).toBe('runtime_status');
     expect(result.stale).toBe(false);
     expect(result.data).toMatchObject({
@@ -331,4 +335,3 @@ describe('AlgoTraderGatewayClient', () => {
     expect(String(result.data.operator_guidance)).toContain('7496');
   });
 });
-

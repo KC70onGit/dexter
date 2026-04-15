@@ -49,7 +49,7 @@ Default request timeout:
 - `health.ts`
   Reads `/api/health` — use for monitor freshness and session-state questions
 - `status.ts`
-  Reads `/api/status` — use for IBKR broker/gateway/TWS connectivity questions (FIX-185)
+  Reads `/api/status` — use for IBKR broker/gateway/TWS connectivity questions (FIX-185). The Python server also keeps `/api/runtime-status` as a compatibility alias.
 - `positions.ts`
   Reads `/api/positions`
 - `signals.ts`
@@ -67,6 +67,7 @@ Default request timeout:
 
 - `GET /api/health`
 - `GET /api/status`
+- `GET /api/runtime-status` (legacy compatibility alias)
 - `GET /api/positions`
 - `GET /api/signals`
 - `GET /api/trades`
@@ -118,6 +119,11 @@ curl -sf http://127.0.0.1:8787/api/status
 
 If those endpoints fail, these tools will fail too.
 
+Legacy compatibility:
+
+- the dashboard may still fall back to `/api/runtime-status`
+- Dexter should treat `/api/status` as the canonical route
+
 Health nuance:
 
 - stale `MARKET_CLOSED` should be treated as a stale monitor snapshot, not proof the exchange is currently closed
@@ -129,6 +135,7 @@ Status nuance (FIX-185):
 - `broker_state` is a derived enum: `connected`, `gateway_only`, `unreachable`, or `unknown`
 - `broker_state_authoritative` is false when the underlying snapshot is stale
 - `operator_guidance` provides a human-readable explanation tying gateway reachability + engine connection + staleness together
+- Python-side raw `status` / `status_label` now align with the same degraded/stale semantics, so Dexter does not receive contradictory runtime-vs-derived state
 
 ## Most Important File
 
