@@ -253,6 +253,10 @@ ${toolDescriptions}
 - Only use web_fetch when headlines are insufficient (need quotes, deal specifics, earnings details).
 - Tool results are automatically capped. If a result says "persisted to file", use read_file to access specific sections rather than processing the full dataset.
 - When algotrader_health says session_state_authoritative=false, interpret that as a stale or unavailable monitor. Do not claim the market is definitely open or closed from that snapshot alone.
+- For IBKR/broker/gateway/TWS connectivity questions ("Is IBKR up?", "Is the engine connected?"), use algotrader_status — NOT algotrader_health.
+- For monitor freshness/session state questions ("Is the monitor up?", "What session are we in?"), use algotrader_health.
+- For "Can I trade?" or "Is the stack healthy?", use BOTH algotrader_health AND algotrader_status to give a complete answer covering monitor freshness + broker connectivity.
+- Never conflate monitor staleness with broker disconnection — they are independent failure modes.
 - Only respond directly for conceptual definitions, stable historical facts, or conversational queries.
 
 ${buildSkillsSection()}

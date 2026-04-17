@@ -4,4 +4,5 @@ export { createAlgoTraderHealthTool, ALGOTRADER_HEALTH_DESCRIPTION } from './hea
 export { createAlgoTraderPositionsTool, ALGOTRADER_POSITIONS_DESCRIPTION } from './positions.js';
 export { createAlgoTraderRequestTradeTool, ALGOTRADER_REQUEST_TRADE_DESCRIPTION } from './request-trade.js';
 export { createAlgoTraderSignalsTool, ALGOTRADER_SIGNALS_DESCRIPTION } from './signals.js';
+export { createAlgoTraderStatusTool, ALGOTRADER_STATUS_DESCRIPTION } from './status.js';
 export { createAlgoTraderTradesTool, ALGOTRADER_TRADES_DESCRIPTION } from './trades.js';

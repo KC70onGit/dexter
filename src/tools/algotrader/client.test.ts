@@ -182,4 +182,156 @@ describe('AlgoTraderGatewayClient', () => {
       enqueued: true,
     });
   });
+
+  // ====================================================================
+  // FIX-185: /api/status — IBKR broker connectivity tests
+  // ====================================================================
+
+  test('getStatus returns connected when gateway reachable and engine connected', async () => {
+    const seenUrls: string[] = [];
+    globalThis.fetch = async (input) => {
+      seenUrls.push(typeof input === 'string' ? input : input.url);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'online',
+          status_label: '✅ Online (port 4002)',
+          gateway_reachable: true,
+          gateway_port: 4002,
+          engine_ib_connected: true,
+          updated_at: new Date().toISOString(),
+          is_stale: false,
+          session_state: 'LIVE',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as typeof fetch;
+    };
+
+    const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
+    const result = await client.getStatus();
+
+    expect(seenUrls).toEqual(['http://127.0.0.1:8787/api/status']);
+    expect(result.source).toBe('runtime_status');
+    expect(result.stale).toBe(false);
+    expect(result.data).toMatchObject({
+      status: 'online',
+      gateway_reachable: true,
+      gateway_port: 4002,
+      engine_ib_connected: true,
+      broker_state: 'connected',
+      broker_state_authoritative: true,
+    });
+    expect(String(result.data.operator_guidance)).toContain('fully online');
+  });
+
+  test('getStatus returns gateway_only when gateway reachable but engine disconnected', async () => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'degraded',
+          status_label: '⚠️ Degraded',
+          gateway_reachable: true,
+          gateway_port: 4002,
+          engine_ib_connected: false,
+          updated_at: new Date().toISOString(),
+          is_stale: false,
+          session_state: 'LIVE',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as typeof fetch;
+
+    const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
+    const result = await client.getStatus();
+
+    expect(result.data).toMatchObject({
+      broker_state: 'gateway_only',
+      broker_state_authoritative: true,
+      gateway_reachable: true,
+      engine_ib_connected: false,
+    });
+    expect(String(result.data.operator_guidance)).toContain('NOT connected');
+  });
+
+  test('getStatus returns unreachable when both gateway and engine are down', async () => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'offline',
+          status_label: '❌ Offline',
+          gateway_reachable: false,
+          gateway_port: null,
+          engine_ib_connected: false,
+          updated_at: new Date().toISOString(),
+          is_stale: false,
+          session_state: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as typeof fetch;
+
+    const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
+    const result = await client.getStatus();
+
+    expect(result.data).toMatchObject({
+      broker_state: 'unreachable',
+      broker_state_authoritative: true,
+      gateway_reachable: false,
+      engine_ib_connected: false,
+    });
+    expect(String(result.data.operator_guidance)).toContain('unreachable');
+  });
+
+  test('getStatus returns unknown broker state when status is stale', async () => {
+    const staleTimestamp = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'stale',
+          status_label: '⏳ Stale',
+          gateway_reachable: true,
+          gateway_port: 4002,
+          engine_ib_connected: true,
+          updated_at: staleTimestamp,
+          is_stale: true,
+          session_state: 'LIVE',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as typeof fetch;
+
+    const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
+    const result = await client.getStatus();
+
+    expect(result.stale).toBe(true);
+    expect(result.data).toMatchObject({
+      broker_state: 'unknown',
+      broker_state_authoritative: false,
+    });
+    expect(String(result.data.operator_guidance)).toContain('stale');
+  });
+
+  test('getStatus reports non-default gateway port in guidance', async () => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          status: 'online',
+          status_label: '✅ Online (port 7496)',
+          gateway_reachable: true,
+          gateway_port: 7496,
+          engine_ib_connected: true,
+          updated_at: new Date().toISOString(),
+          is_stale: false,
+          session_state: 'LIVE',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as typeof fetch;
+
+    const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
+    const result = await client.getStatus();
+
+    expect(result.data.gateway_port).toBe(7496);
+    expect(String(result.data.operator_guidance)).toContain('7496');
+  });
 });

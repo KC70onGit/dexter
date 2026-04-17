@@ -21,6 +21,28 @@ type AutotradeStatusResponse = {
   whitelist?: string[];
 };
 
+type StatusResponse = {
+  ok?: boolean;
+  status?: string;
+  status_label?: string;
+  gateway_host?: string;
+  gateway_ports_checked?: number[];
+  gateway_reachable?: boolean;
+  gateway_port?: number | null;
+  engine_ib_connected?: boolean;
+  updated_at?: string | null;
+  age_sec?: number | null;
+  is_stale?: boolean;
+  session_state?: string | null;
+  generated_at?: string | null;
+};
+
+type StatusInterpretation = {
+  brokerState: 'connected' | 'gateway_only' | 'unreachable' | 'unknown';
+  brokerStateAuthoritative: boolean;
+  operatorGuidance: string;
+};
+
 type ChartResponse = {
   ok?: boolean;
   chart?: unknown;
@@ -69,6 +91,58 @@ function deriveStaleness(updatedAt: string | null | undefined, maxAgeSeconds: nu
 function normalizeSessionState(sessionState: string | null | undefined): string | null {
   const normalized = sessionState?.trim().toUpperCase();
   return normalized || null;
+}
+
+// [FIX-185] Derive IBKR broker connectivity interpretation from /api/status fields.
+function deriveStatusInterpretation(
+  gatewayReachable: boolean,
+  engineIbConnected: boolean,
+  isStale: boolean,
+  gatewayPort: number | null | undefined,
+): StatusInterpretation {
+  if (isStale) {
+    return {
+      brokerState: 'unknown',
+      brokerStateAuthoritative: false,
+      operatorGuidance:
+        'Runtime status snapshot is stale. Broker connectivity state may be outdated — verify manually.',
+    };
+  }
+
+  if (gatewayReachable && engineIbConnected) {
+    const portSuffix = gatewayPort ? ` (port ${gatewayPort})` : '';
+    return {
+      brokerState: 'connected',
+      brokerStateAuthoritative: true,
+      operatorGuidance: `IBKR gateway is reachable${portSuffix} and engine is connected. Stack is fully online.`,
+    };
+  }
+
+  if (gatewayReachable && !engineIbConnected) {
+    const portSuffix = gatewayPort ? ` (port ${gatewayPort})` : '';
+    return {
+      brokerState: 'gateway_only',
+      brokerStateAuthoritative: true,
+      operatorGuidance:
+        `IBKR gateway is reachable${portSuffix} but engine is NOT connected to IBKR. Stack is degraded — the engine may need a restart or IBKR login.`,
+    };
+  }
+
+  if (!gatewayReachable && engineIbConnected) {
+    return {
+      brokerState: 'gateway_only',
+      brokerStateAuthoritative: false,
+      operatorGuidance:
+        'Gateway probe failed but engine reports connected. Possible transient network issue or probe lag.',
+    };
+  }
+
+  return {
+    brokerState: 'unreachable',
+    brokerStateAuthoritative: true,
+    operatorGuidance:
+      'IBKR gateway is unreachable and engine is not connected. IBKR is offline or TWS/Gateway is not running.',
+  };
 }
 
 function deriveHealthInterpretation(sessionState: string | null, stale: boolean): {
@@ -275,6 +349,38 @@ export class AlgoTraderGatewayClient {
       updated_at: null,
       stale: false,
       data: payload.chart ?? null,
+    };
+  }
+
+  // [FIX-185] Read /api/status for IBKR/runtime connectivity — the correct read surface
+  // for broker questions (as opposed to /api/health which is for monitor/session freshness).
+  async getStatus(): Promise<AlgoTraderEnvelope<Record<string, unknown>>> {
+    const payload = (await this.request('/api/status')) as StatusResponse;
+    const isStale = payload.is_stale ?? deriveStaleness(payload.updated_at ?? null, 45);
+    const gatewayReachable = Boolean(payload.gateway_reachable);
+    const engineIbConnected = Boolean(payload.engine_ib_connected);
+    const gatewayPort = payload.gateway_port ?? null;
+    const interpretation = deriveStatusInterpretation(
+      gatewayReachable,
+      engineIbConnected,
+      isStale,
+      gatewayPort,
+    );
+    return {
+      source: 'runtime_status',
+      updated_at: payload.updated_at ?? null,
+      stale: isStale,
+      data: {
+        status: payload.status ?? 'unknown',
+        status_label: payload.status_label ?? 'Unknown',
+        gateway_reachable: gatewayReachable,
+        gateway_port: gatewayPort,
+        engine_ib_connected: engineIbConnected,
+        session_state: normalizeSessionState(payload.session_state ?? null),
+        broker_state: interpretation.brokerState,
+        broker_state_authoritative: interpretation.brokerStateAuthoritative,
+        operator_guidance: interpretation.operatorGuidance,
+      },
     };
   }
 
