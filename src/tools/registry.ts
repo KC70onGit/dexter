@@ -32,6 +32,16 @@ import {
   INTERNAL_WIKI_READ_DESCRIPTION,
   INTERNAL_WIKI_SEARCH_DESCRIPTION,
 } from './internal-wiki/index.js';
+import {
+  workflowListTool,
+  workflowReadTool,
+  workflowRunTool,
+  workflowStatusTool,
+  WORKFLOW_LIST_DESCRIPTION,
+  WORKFLOW_READ_DESCRIPTION,
+  WORKFLOW_RUN_DESCRIPTION,
+  WORKFLOW_STATUS_DESCRIPTION,
+} from './workflows/index.js';
 import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
 import { writeFileTool, WRITE_FILE_DESCRIPTION } from './filesystem/write-file.js';
 import { editFileTool, EDIT_FILE_DESCRIPTION } from './filesystem/edit-file.js';
@@ -186,6 +196,34 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: internalWikiReadTool,
       description: INTERNAL_WIKI_READ_DESCRIPTION,
       compactDescription: 'Read a local internal engineering wiki document by path.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'workflow_list',
+      tool: workflowListTool,
+      description: WORKFLOW_LIST_DESCRIPTION,
+      compactDescription: 'List local markdown workflows and show which ones Dexter can start remotely.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'workflow_read',
+      tool: workflowReadTool,
+      description: WORKFLOW_READ_DESCRIPTION,
+      compactDescription: 'Read a local workflow runbook from .agents/workflows by path.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'workflow_run',
+      tool: workflowRunTool,
+      description: WORKFLOW_RUN_DESCRIPTION,
+      compactDescription: 'Start a vetted local workflow in the background and return a run id plus log path.',
+      concurrencySafe: false,
+    },
+    {
+      name: 'workflow_status',
+      tool: workflowStatusTool,
+      description: WORKFLOW_STATUS_DESCRIPTION,
+      compactDescription: 'Check the latest status and log tail for a Dexter-started workflow run.',
       concurrencySafe: true,
     },
     {
