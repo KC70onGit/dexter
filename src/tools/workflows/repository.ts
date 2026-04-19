@@ -137,6 +137,26 @@ function extractTitle(content: string, fallbackPath: string): string {
   return fallbackPath.split('/').pop()?.replace(/\.md$/i, '') || fallbackPath;
 }
 
+function parseWorkflowMarkdown(raw: string): {
+  data: Record<string, unknown>;
+  content: string;
+} {
+  try {
+    const parsed = matter(raw);
+    return {
+      data: parsed.data,
+      content: parsed.content || raw,
+    };
+  } catch {
+    // [FIX-209] Real workflow notes sometimes carry loose frontmatter-like headers
+    // that are not valid YAML, so fall back to raw markdown instead of crashing listing.
+    return {
+      data: {},
+      content: raw,
+    };
+  }
+}
+
 function resolveWorkflowPath(filePath: string, workflowRoot: string): string {
   const root = resolve(workflowRoot);
   const candidate = isAbsolute(filePath) ? resolve(filePath) : resolve(root, filePath);
@@ -195,8 +215,8 @@ export async function listWorkflows(params: {
   for (const absolutePath of files) {
     const relativePath = relative(resolve(workflowRoot), absolutePath).replace(/\\/g, '/');
     const raw = (await readFile(absolutePath)).toString('utf-8');
-    const parsed = matter(raw);
-    const content = parsed.content || raw;
+    const parsed = parseWorkflowMarkdown(raw);
+    const content = parsed.content;
     const title = extractTitle(content, relativePath);
     const description =
       typeof parsed.data.description === 'string' && parsed.data.description.trim()
@@ -240,8 +260,8 @@ export async function readWorkflowDocument(params: {
   await access(absolutePath, constants.R_OK);
 
   const raw = (await readFile(absolutePath)).toString('utf-8');
-  const parsed = matter(raw);
-  const content = parsed.content || raw;
+  const parsed = parseWorkflowMarkdown(raw);
+  const content = parsed.content;
   const hasMetadata = Object.keys(parsed.data).length > 0;
 
   return {
@@ -306,6 +326,12 @@ function deriveStatus(
     return 'running';
   }
   return 'unknown';
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolveDelay) => {
+    setTimeout(resolveDelay, ms);
+  });
 }
 
 async function listRunMetadataFiles(stateRoot: string): Promise<string[]> {
@@ -383,11 +409,11 @@ LOG_FILE=${shellQuote(logPath)}
 DONE_FILE=${shellQuote(donePath)}
 RUN_ID=${shellQuote(runId)}
 WORKFLOW_ID=${shellQuote(definition.id)}
-{
+(
   echo "[FIX-209] Starting workflow $WORKFLOW_ID ($RUN_ID)"
   set -euo pipefail
 ${command}
-} >> "$LOG_FILE" 2>&1
+) >> "$LOG_FILE" 2>&1
 code=$?
 finished_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 printf '{"runId":"%s","workflowId":"%s","finishedAt":"%s","exitCode":%s}\\n' "$RUN_ID" "$WORKFLOW_ID" "$finished_at" "$code" > "$DONE_FILE"
@@ -445,7 +471,7 @@ export async function getWorkflowRunStatus(params: {
     if (!workflowId) {
       throw new Error('workflow_status requires runId or workflowId');
     }
-    runId = await findLatestRunIdForWorkflow(workflowId, stateRoot);
+    runId = (await findLatestRunIdForWorkflow(workflowId, stateRoot)) || undefined;
     if (!runId) {
       throw new Error(`No workflow runs found for: ${workflowId}`);
     }
@@ -456,8 +482,16 @@ export async function getWorkflowRunStatus(params: {
     throw new Error(`Workflow run not found: ${runId}`);
   }
 
-  const completion = await readJsonFile<WorkflowCompletionRecord>(metadata.donePath);
-  const status = deriveStatus(metadata, completion);
+  let completion = await readJsonFile<WorkflowCompletionRecord>(metadata.donePath);
+  let status = deriveStatus(metadata, completion);
+
+  // [FIX-209] Detached workflow processes can exit a few milliseconds before the wrapper
+  // flushes the completion marker, so re-check once before surfacing a stale "unknown".
+  if (status === 'unknown') {
+    await delay(150);
+    completion = await readJsonFile<WorkflowCompletionRecord>(metadata.donePath);
+    status = deriveStatus(metadata, completion);
+  }
 
   return {
     runId: metadata.runId,

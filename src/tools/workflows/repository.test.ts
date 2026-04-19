@@ -64,6 +64,19 @@ Not remotely runnable.
     'utf-8',
   );
 
+  await writeFile(
+    join(workflowRoot, 'invalid-frontmatter.md'),
+    `---
+description: Analysis-first coding agent: inspect before editing, preserve architecture
+---
+
+# Invalid Frontmatter Workflow
+
+Still list this document instead of crashing.
+`,
+    'utf-8',
+  );
+
   process.env.DEXTER_WORKFLOW_ROOT = workflowRoot;
   process.env.DEXTER_WORKFLOW_STATE_ROOT = stateRoot;
   process.env.DEXTER_WORKFLOW_WORKSPACE_ROOT = workspaceRoot;
@@ -88,13 +101,13 @@ describe('workflow repository', () => {
 
     const workflows = await listWorkflows({ limit: 10 });
 
-    expect(workflows).toHaveLength(2);
+    expect(workflows).toHaveLength(3);
     expect(workflows[0]).toMatchObject({
       path: '3.scan-premarket-live.md',
       remotelyRunnable: true,
       runnableId: 'scan_premarket_live',
     });
-    expect(workflows[1]).toMatchObject({
+    expect(workflows[2]).toMatchObject({
       path: 'other.md',
       remotelyRunnable: false,
       runnableId: null,
@@ -121,6 +134,18 @@ describe('workflow repository', () => {
         path: '../outside.md',
       }),
     ).rejects.toThrow('Path escapes workflow root');
+  });
+
+  test('falls back to raw markdown when frontmatter is invalid YAML', async () => {
+    await createFixtureEnvironment();
+
+    const document = await readWorkflowDocument({
+      path: 'invalid-frontmatter.md',
+    });
+
+    expect(document.metadata).toBeNull();
+    expect(document.title).toBe('Invalid Frontmatter Workflow');
+    expect(document.content).toContain('Still list this document');
   });
 
   test('starts and completes a remote workflow run with status tracking', async () => {
