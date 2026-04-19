@@ -14,6 +14,12 @@ export {
   internalWikiReadTool,
   internalWikiSearchTool,
 } from './internal-wiki/index.js';
+export {
+  workflowListTool,
+  workflowReadTool,
+  workflowRunTool,
+  workflowStatusTool,
+} from './workflows/index.js';
 
 // Tool descriptions
 export {

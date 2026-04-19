@@ -129,6 +129,8 @@ Top-level folders that matter operationally:
   Transport/runtime layer for Telegram and WhatsApp
 - `src/tools/algotrader/`
   Typed client/tools for talking to the Python AlgoTrader monitor server
+- `src/tools/workflows/`
+  Typed workflow discovery + vetted background runner for `.agents/workflows/`
 - `.dexter/`
   Local runtime state, gateway config, logs, sessions, memory, and safety counters
 - `src/agent/`
@@ -146,6 +148,7 @@ Current bridge behavior:
 - confirmed requests are audited to `.dexter/telegram-trade-audit.jsonl`
 - trade writes are policy-gated by heartbeat and daily limits
 - live-state answers should explicitly distinguish fresh monitor truth from stale/offline monitor snapshots
+- [FIX-209] Dexter can now list/read local workflow runbooks under `/Users/keespronk/Python_Dev/.agents/workflows/`, and it can start a vetted allowlist of background workflows with run-id + log/status tracking instead of arbitrary shell execution. The first remotely runnable workflow is `scan_premarket_live`, which launches the pre-market sweep + QA filter + full analyser grading inside the main Python workspace.
 
 ## Operational Notes
 
