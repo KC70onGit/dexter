@@ -88,6 +88,12 @@ Current aligned selection in both dev and prod:
 - provider: `google`
 - model: `gemini-2.5-flash-lite`
 
+Candidate Intelligence validation:
+
+- `src/scripts/candidate-intelligence-review.ts` is a noninteractive Dexter-side reviewer for `candidate_intelligence_dexter_packet_v1` prompts.
+- It uses Dexter's own LLM layer and writes batch JSON responses, but it does not start the Telegram/WhatsApp gateway, call tools, or alter Candidate Intelligence ranks.
+- The Python-side harness lives in `/Users/keespronk/Python_Dev/modules/candidate_intelligence/dexter_validation.py` and writes `/Users/keespronk/Python_Dev/analysers/candidate_intelligence/YYYY-MM-DD_dexter_validation.json`.
+
 ## External Dependency
 
 The bridge expects AlgoTrader's monitor server to be reachable.
