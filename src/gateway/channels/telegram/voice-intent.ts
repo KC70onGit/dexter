@@ -70,7 +70,11 @@ export async function parseVoiceIntentFile(
     const parsed = parseVoiceIntentCliOutput(stdout);
     if (parsed) return parsed;
 
-    console.error('[telegram] Failed to parse shared voice intent:', error);
+    console.error(
+      '[telegram] Failed to parse shared voice intent:',
+      `python=${command.file} cwd=${command.cwd}`,
+      error,
+    );
     return null;
   }
 }
