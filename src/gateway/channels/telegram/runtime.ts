@@ -1,5 +1,9 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import TelegramBot from 'node-telegram-bot-api';
 import { chunkTelegramHtml, stripTelegramHtml } from '../../utils.js';
+import { parseVoiceIntentFile, voiceIntentToDexterText } from './voice-intent.js';
 
 export type TelegramInboundMessage = {
   channel: 'telegram';
@@ -24,6 +28,28 @@ export type TelegramInboundMessage = {
   reply: (text: string) => Promise<void>;
   replyWithTradeConfirmation: (text: string, token: string) => Promise<void>;
 };
+
+async function voiceMessageToDexterText(bot: TelegramBot, fileId: string): Promise<string | null> {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'dexter-voice-'));
+  const safeFileId = fileId.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  const audioPath = path.join(tempDir, `${safeFileId}.ogg`);
+
+  try {
+    const fileLink = await bot.getFileLink(fileId);
+    const response = await fetch(fileLink);
+    if (!response.ok) {
+      throw new Error(`Telegram voice download failed with HTTP ${response.status}`);
+    }
+
+    await writeFile(audioPath, Buffer.from(await response.arrayBuffer()));
+    return voiceIntentToDexterText(await parseVoiceIntentFile(audioPath));
+  } catch (error) {
+    console.error('[telegram] Failed to process voice note:', error);
+    return null;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
 export async function monitorTelegramChannel(params: {
   accountId: string;
@@ -59,7 +85,7 @@ export async function monitorTelegramChannel(params: {
     onStatus({ connected: true });
 
     bot.on('message', async (msg) => {
-      if (abortSignal.aborted || !msg.text) return;
+      if (abortSignal.aborted || (!msg.text && !msg.voice)) return;
 
       const chatId = String(msg.chat.id);
       const senderId = String(msg.from?.id ?? '');
@@ -73,8 +99,19 @@ export async function monitorTelegramChannel(params: {
         return;
       }
 
+      let body = msg.text ?? '';
+      if (!body && msg.voice?.file_id) {
+        await bot.sendChatAction(chatId, 'typing').catch(() => {});
+        body = (await voiceMessageToDexterText(bot, msg.voice.file_id)) ?? '';
+        if (abortSignal.aborted) return;
+        if (!body) {
+          await bot.sendMessage(chatId, "I couldn't understand that voice note yet. Please type the request or try again.");
+          return;
+        }
+      }
+
       let mentionedJids: string[] = [];
-      if (selfMention && msg.text.toLowerCase().includes(selfMention)) {
+      if (selfMention && body.toLowerCase().includes(selfMention)) {
         mentionedJids.push(selfId);
       }
 
@@ -88,7 +125,7 @@ export async function monitorTelegramChannel(params: {
         from: String(msg.chat.id),
         senderId,
         senderName,
-        body: msg.text,
+        body,
         chatType,
         groupSubject,
         selfJid: selfId,

@@ -71,6 +71,8 @@ Important env/config expectations:
 - `DEXTER_GATEWAY_CONFIG` is optional and defaults to `.dexter/gateway.json`
 - `DEXTER_TELEGRAM_SAFETY_STATE_PATH` is optional and defaults to `.dexter/telegram-safety.json`
 - `DEXTER_RUNTIME_NAME` and `DEXTER_RUNTIME_ROLE` are optional explicit identity labels shown in the agent prompt when users ask whether they are talking to dev or prod
+- `ALGOTRADER_REPO_ROOT` is optional for Telegram voice notes and defaults to the parent AlgoTrader checkout of `dexter-telegram`
+- `DEXTER_VOICE_INTENT_PYTHON` is optional for Telegram voice notes and defaults to `python3`
 - if `.dexter/settings.json` does not exist yet, Dexter now auto-picks the first provider with a configured API key instead of assuming OpenAI
 - `.dexter/settings.json` is the persisted runtime model/provider selection used by the gateway
 
@@ -154,6 +156,7 @@ Current bridge behavior:
 - confirmed requests are audited to `.dexter/telegram-trade-audit.jsonl`
 - trade writes are policy-gated by heartbeat and daily limits
 - live-state answers should explicitly distinguish fresh monitor truth from stale/offline monitor snapshots
+- [FIX-376] Telegram voice notes are downloaded by Dexter and parsed through the shared Python-owned `telegram.voice_intent` CLI in the AlgoTrader checkout; parsed commands become natural Dexter requests, structured `ok:false` parse/audio-read CLI failures stay parseable, and free-form spoken questions can pass through `query_text`. The operational Algo Listener keeps its separate direct import fast path and does not depend on Dexter.
 - [FIX-209] Dexter can now list/read local workflow runbooks under `/Users/keespronk/Python_Dev/.agents/workflows/`, and it can start a vetted allowlist of background workflows with run-id + log/status tracking instead of arbitrary shell execution. The first remotely runnable workflow is `scan_premarket_live`, which launches the pre-market sweep + QA filter + full analyser grading inside the main Python workspace.
 
 ## Operational Notes
