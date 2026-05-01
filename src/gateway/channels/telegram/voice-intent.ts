@@ -63,6 +63,7 @@ export async function parseVoiceIntentFile(
       cwd: command.cwd,
       timeout: 45_000,
       maxBuffer: 1024 * 1024,
+      env: { ...process.env, PYTHONPATH: command.cwd },
     });
     return parseVoiceIntentCliOutput(stdout);
   } catch (error) {
