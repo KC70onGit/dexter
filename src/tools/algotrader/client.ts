@@ -384,6 +384,20 @@ export class AlgoTraderGatewayClient {
     };
   }
 
+  // [FIX-403] Read /api/market-regime for SPY regime + QQQ/VIX context.
+  // The correct read surface for market environment questions (as opposed to
+  // /api/health which is for monitor/session freshness).
+  async getMarketRegime(): Promise<AlgoTraderEnvelope<Record<string, unknown>>> {
+    const payload = (await this.request('/api/market-regime')) as Record<string, unknown>;
+    const stale = Boolean(payload.stale ?? true);
+    return {
+      source: 'market_regime',
+      updated_at: (payload.last_updated as string) ?? null,
+      stale,
+      data: payload,
+    };
+  }
+
   async submitTrade(request: SubmitTradeRequest): Promise<SubmitTradeResponse> {
     return this.post('/api/trade', request) as Promise<SubmitTradeResponse>;
   }

@@ -58,6 +58,8 @@ Default request timeout:
   Reads `/api/trades`
 - `chart.ts`
   Reads `/api/chart?ticker=...`
+- `market-regime.ts`
+  Reads `/api/market-regime` — use for regime, market conditions, /MR questions (FIX-403)
 - `request-trade.ts`
   Defines the guarded Telegram trade-request tool
 - `index.ts`
@@ -72,6 +74,7 @@ Default request timeout:
 - `GET /api/signals`
 - `GET /api/trades`
 - `GET /api/chart?ticker=...`
+- `GET /api/market-regime`
 - `POST /api/trade`
 - `GET /api/autotrade-status`
 
@@ -87,6 +90,9 @@ There are two distinct read surfaces for stack health:
 | "Is the engine connected?" | `algotrader_status` |
 | "Can I trade right now?" | **both** |
 | "Is the stack healthy?" | **both** |
+| "What's the market regime?" | `algotrader_market_regime` |
+| "Is the market bullish?" | `algotrader_market_regime` |
+| "Market conditions" | `algotrader_market_regime` |
 
 Key distinction:
 

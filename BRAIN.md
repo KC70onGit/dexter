@@ -113,6 +113,7 @@ Important endpoints used by the bridge:
 - `GET /api/signals`
 - `GET /api/trades`
 - `GET /api/chart?ticker=...`
+- `GET /api/market-regime`
 - `POST /api/trade`
 
 If the health endpoint is stale, `NO_DATA`, or fresh `MARKET_CLOSED`, trade-request writes are blocked by policy.

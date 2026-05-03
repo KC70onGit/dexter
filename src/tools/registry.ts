@@ -2,6 +2,7 @@ import { StructuredToolInterface } from '@langchain/core/tools';
 import {
   ALGOTRADER_CHART_DESCRIPTION,
   ALGOTRADER_HEALTH_DESCRIPTION,
+  ALGOTRADER_MARKET_REGIME_DESCRIPTION,  // [FIX-403]
   ALGOTRADER_POSITIONS_DESCRIPTION,
   ALGOTRADER_REQUEST_TRADE_DESCRIPTION,
   ALGOTRADER_SIGNALS_DESCRIPTION,
@@ -9,6 +10,7 @@ import {
   ALGOTRADER_TRADES_DESCRIPTION,
   createAlgoTraderChartTool,
   createAlgoTraderHealthTool,
+  createAlgoTraderMarketRegimeTool,  // [FIX-403]
   createAlgoTraderPositionsTool,
   createAlgoTraderRequestTradeTool,
   createAlgoTraderSignalsTool,
@@ -84,6 +86,13 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createAlgoTraderHealthTool(),
       description: ALGOTRADER_HEALTH_DESCRIPTION,
       compactDescription: 'Read live AlgoTrader health and freshness before making claims about current state. Treat non-authoritative session_state as a stale monitor signal, not exchange-hours proof.',
+      concurrencySafe: true,
+    },
+    {  // [FIX-403]
+      name: 'algotrader_market_regime',
+      tool: createAlgoTraderMarketRegimeTool(),
+      description: ALGOTRADER_MARKET_REGIME_DESCRIPTION,
+      compactDescription: 'Read current SPY regime (BULLISH/BEARISH/CHOPPY), QQQ bias, VIX stress, and market style. Use for /MR or market environment questions.',
       concurrencySafe: true,
     },
     {
