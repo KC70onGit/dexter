@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+This file narrows the root `/Users/keespronk/Python_Dev/AGENTS.md` rules for
+the `dexter-telegram/` subtree. Follow the root rules unless this file is more
+specific.
+
 - Repo: https://github.com/virattt/dexter
 - Dexter is a CLI-based AI agent for deep financial research, built with TypeScript, Ink (React for CLI), and LangChain.
 
