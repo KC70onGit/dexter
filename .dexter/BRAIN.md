@@ -1,5 +1,8 @@
 # .dexter BRAIN
 
+**Last verified:** 2026-05-20  
+
+
 This folder is the local Dexter runtime state directory.
 
 Most contents here are machine-local and intentionally ignored by Git.
@@ -37,7 +40,7 @@ Almost everything in `.dexter/` should stay local-only.
 
 The only file intended to be tracked here is this documentation file:
 
-- `.dexter/BRAIN.md`
+- `dexter-telegram/.dexter/BRAIN.md`
 
 Runtime files like `gateway.json`, `telegram-safety.json`, and audit/session artifacts should not be committed from normal local operation.
 
