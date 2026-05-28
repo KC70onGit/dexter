@@ -60,6 +60,17 @@ describe('telegram voice intent adapter', () => {
     expect(text).toBe('What is the current market regime?');
   });
 
+  test('turns explicit MR voice intent into an AlgoTrader regime request', () => {
+    const text = voiceIntentToDexterText({
+      ok: true,
+      command: { command: 'MR' },
+    });
+
+    expect(text).toContain('AlgoTrader');
+    expect(text).toContain('SPY');
+    expect(text).toContain('regime');
+  });
+
   test('parses structured CLI failure output for diagnostics', () => {
     const result = parseVoiceIntentCliOutput('{"ok": false, "error": "voice_intent_unavailable_or_unparsed"}');
 

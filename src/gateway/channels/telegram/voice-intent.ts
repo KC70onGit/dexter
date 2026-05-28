@@ -129,6 +129,8 @@ export function voiceIntentToDexterText(result: SharedVoiceIntentResult | null |
       return 'Show the top alerts.';
     case 'E':
       return 'Show the AlgoTrader engine status.';
+    case 'MR':
+      return 'Show the current AlgoTrader SPY regime, QQQ bias, VIX stress, and market style.';
     case 'CP':
       return 'Start the cancel pending orders flow.';
     case 'CL':

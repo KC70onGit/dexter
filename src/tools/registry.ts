@@ -35,6 +35,16 @@ import {
   INTERNAL_WIKI_SEARCH_DESCRIPTION,
 } from './internal-wiki/index.js';
 import {
+  createTradeIdeasIntegratedUniverseTool,
+  createTradeIdeasOpeningSessionTool,
+  createTradeIdeasQualityAssuranceTool,
+  createTradeIdeasWatchlistsTool,
+  TRADE_IDEAS_INTEGRATED_UNIVERSE_DESCRIPTION,
+  TRADE_IDEAS_OPENING_SESSION_DESCRIPTION,
+  TRADE_IDEAS_QUALITY_ASSURANCE_DESCRIPTION,
+  TRADE_IDEAS_WATCHLISTS_DESCRIPTION,
+} from './trade-ideas-hub/index.js';
+import {
   workflowListTool,
   workflowReadTool,
   workflowRunTool,
@@ -92,7 +102,7 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       name: 'algotrader_market_regime',
       tool: createAlgoTraderMarketRegimeTool(),
       description: ALGOTRADER_MARKET_REGIME_DESCRIPTION,
-      compactDescription: 'Read current SPY regime (BULLISH/BEARISH/CHOPPY), QQQ bias, VIX stress, and market style. Use for /MR or market environment questions.',
+      compactDescription: 'Read the AlgoTrader SPY regime snapshot, QQQ bias, VIX stress, and market style. Use for explicit /MR, AlgoTrader regime, or SPY regime questions only.',
       concurrencySafe: true,
     },
     {
@@ -136,6 +146,34 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       description: ALGOTRADER_REQUEST_TRADE_DESCRIPTION,
       compactDescription: 'Prepare a live trade request for Telegram confirmation buttons. Does not execute immediately.',
       concurrencySafe: false,
+    },
+    {
+      name: 'trade_ideas_integrated_universe',
+      tool: createTradeIdeasIntegratedUniverseTool(),
+      description: TRADE_IDEAS_INTEGRATED_UNIVERSE_DESCRIPTION,
+      compactDescription: 'Read the Trade Ideas Hub integrated ticker universe and ranked candidates. Hub API first, canonical local artifact fallback; read-only.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'trade_ideas_quality_assurance',
+      tool: createTradeIdeasQualityAssuranceTool(),
+      description: TRADE_IDEAS_QUALITY_ASSURANCE_DESCRIPTION,
+      compactDescription: 'Read existing Trade Ideas Hub/runtime QA truth for pipeline quality, freshness, and validation checks. Does not invent a second QA verdict.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'trade_ideas_opening_session',
+      tool: createTradeIdeasOpeningSessionTool(),
+      description: TRADE_IDEAS_OPENING_SESSION_DESCRIPTION,
+      compactDescription: 'Read opening-session candidates and preopen evidence from the Hub or persisted artifacts. Read-only; no order routing.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'trade_ideas_watchlists',
+      tool: createTradeIdeasWatchlistsTool(),
+      description: TRADE_IDEAS_WATCHLISTS_DESCRIPTION,
+      compactDescription: 'Read generated Trade Ideas watchlists and watchlist matrices. Hub API first, local watchlist artifact fallback; read-only.',
+      concurrencySafe: true,
     },
     {
       name: 'get_financials',

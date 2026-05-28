@@ -59,7 +59,7 @@ Default request timeout:
 - `chart.ts`
   Reads `/api/chart?ticker=...`
 - `market-regime.ts`
-  Reads `/api/market-regime` — use for regime, market conditions, /MR questions (FIX-403)
+  Reads `/api/market-regime` — use only for explicit AlgoTrader/SPY regime or /MR questions (FIX-403/FIX-606)
 - `request-trade.ts`
   Defines the guarded Telegram trade-request tool
 - `index.ts`
@@ -91,8 +91,9 @@ There are two distinct read surfaces for stack health:
 | "Can I trade right now?" | **both** |
 | "Is the stack healthy?" | **both** |
 | "What's the market regime?" | `algotrader_market_regime` |
-| "Is the market bullish?" | `algotrader_market_regime` |
-| "Market conditions" | `algotrader_market_regime` |
+| "What does the AlgoTrader/SPY regime say?" | `algotrader_market_regime` |
+| "How is the market doing?" | Dexter market data/search/reasoning, not this monitor-only tool |
+| "Market conditions / geopolitics" | Dexter free-form answer; use non-bot-dependent tools |
 
 Key distinction:
 

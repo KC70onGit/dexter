@@ -68,6 +68,7 @@ Important env/config expectations:
 
 - `TELEGRAM_BOT_TOKEN` is read from `.env`
 - `ALGOTRADER_BASE_URL` defaults to `http://127.0.0.1:8787`
+- `TRADE_IDEAS_HUB_BASE_URL` defaults to `http://127.0.0.1:8811`
 - `DEXTER_GATEWAY_CONFIG` is optional and defaults to `.dexter/gateway.json`
 - `DEXTER_TELEGRAM_SAFETY_STATE_PATH` is optional and defaults to `.dexter/telegram-safety.json`
 - `DEXTER_RUNTIME_NAME` and `DEXTER_RUNTIME_ROLE` are optional explicit identity labels shown in the agent prompt when users ask whether they are talking to dev or prod
@@ -116,6 +117,20 @@ Important endpoints used by the bridge:
 - `GET /api/market-regime`
 - `POST /api/trade`
 
+Trade Ideas Hub intelligence endpoints used by Dexter read-only tools:
+
+- `GET /api/integrated-pipeline`
+- `GET /api/quality-assurance`
+- `GET /api/opening-session`
+- `GET /api/watchlists`
+
+If the Hub API is unavailable, Dexter falls back to canonical local artifacts under
+`ALGOTRADER_REPO_ROOT`, such as `analysers/universes/*_integrated_scored_universe.json`,
+`algotrader/runtime/quality_assurance_state.json`, opening-session evidence artifacts,
+and generated watchlist files. The fallback is read-only and marked stale.
+The Integrated Pipeline read uses `rerank_legacy=0` so a Dexter question cannot
+trigger Hub artifact writes.
+
 If the health endpoint is stale, `NO_DATA`, or fresh `MARKET_CLOSED`, trade-request writes are blocked by policy.
 
 Health interpretation nuance:
@@ -158,6 +173,7 @@ Current bridge behavior:
 - trade writes are policy-gated by heartbeat and daily limits
 - live-state answers should explicitly distinguish fresh monitor truth from stale/offline monitor snapshots
 - [FIX-376] Telegram voice notes are downloaded by Dexter and parsed through the shared Python-owned `telegram.voice_intent` CLI in the AlgoTrader checkout; parsed commands become natural Dexter requests, structured `ok:false` parse/audio-read CLI failures stay parseable, and free-form spoken questions can pass through `query_text`. The operational Algo Listener keeps its separate direct import fast path and does not depend on Dexter.
+- [FIX-606] Broad spoken questions such as "how is the market doing?", "market conditions", or geopolitical/macro questions stay free-form Dexter `query_text` instead of becoming `MR`. Explicit `/MR`, "AlgoTrader regime", or "SPY regime" voice intents map to the AlgoTrader regime tool. Dexter also has read-only Trade Ideas Hub tools for Integrated Universe, Quality Assurance, Opening Session, and Watchlists; these summarize existing Hub/runtime truth and do not create a second QA model.
 - [FIX-209] Dexter can now list/read local workflow runbooks under `/Users/keespronk/Python_Dev/.agents/workflows/`, and it can start a vetted allowlist of background workflows with run-id + log/status tracking instead of arbitrary shell execution. The first remotely runnable workflow is `scan_premarket_live`, which launches the pre-market sweep + QA filter + full analyser grading inside the main Python workspace.
 
 ## Operational Notes

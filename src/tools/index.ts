@@ -20,6 +20,13 @@ export {
   workflowRunTool,
   workflowStatusTool,
 } from './workflows/index.js';
+export {
+  TradeIdeasHubClient,
+  createTradeIdeasIntegratedUniverseTool,
+  createTradeIdeasOpeningSessionTool,
+  createTradeIdeasQualityAssuranceTool,
+  createTradeIdeasWatchlistsTool,
+} from './trade-ideas-hub/index.js';
 
 // Tool descriptions
 export {

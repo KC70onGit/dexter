@@ -15,9 +15,12 @@ Read the current market regime snapshot from AlgoTrader.
 Returns the live SPY classification (BULLISH / BEARISH / CHOPPY),
 QQQ growth-risk bias, VIX stress state, derived market style, and SPY/QQQ oscillator detail.
 
-Use this when the user asks about market regime, market conditions, "should I trade",
-"/MR", "what's the regime", "is the market bullish/bearish", or general market health.
-This is the primary tool for broad market environment questions.
+Use this for explicit AlgoTrader regime requests: "/MR", "AlgoTrader regime",
+"SPY regime", "QQQ/VIX regime snapshot", or "what does the bot say the regime is?"
+
+Do not use this for broad market, macro, geopolitical, or news questions such as
+"how is the market doing?" Those should be answered by Dexter using market data,
+news/search, and reasoning without requiring the AlgoTrader monitor to be online.
 
 Do NOT use algotrader_health for regime questions — that tool is for monitor/session freshness only.
 `.trim();
