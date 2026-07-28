@@ -466,13 +466,13 @@ export const api = {
   async get(
     endpoint: string,
     params: Params,
-    options?: { cacheable?: boolean },
+    options?: { cacheable?: boolean; ttlMs?: number },
   ): Promise<ApiResponse> {
     const label = describeRequest(endpoint, params);
 
     // Check cache first
     if (options?.cacheable) {
-      const cached = readCache(endpoint, params);
+      const cached = readCache(endpoint, params, options.ttlMs);
       if (cached) return cached;
     }
 

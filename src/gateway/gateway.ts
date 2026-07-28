@@ -266,7 +266,7 @@ async function handleInbound(cfg: GatewayConfig, inbound: InboundMessage): Promi
         }
       }
 
-      if (channelId === 'telegram') {
+      if (inbound.channel === 'telegram') {
         const confirmation = extractTelegramTradeMarker(cleanedAnswer);
         debugLog(`[gateway] sending target independent reply via telegram wrapper`);
         if (confirmation) {

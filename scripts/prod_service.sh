@@ -8,7 +8,8 @@ UID_VALUE="$(id -u)"
 DOMAIN="gui/${UID_VALUE}"
 SOURCE_PLIST="${REPO_ROOT}/ops/launchd/${LABEL}.plist"
 TARGET_PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
-PROD_DIR="${HOME}/Python/dexter-telegram"
+PROD_DIR="${DEXTER_PROD_DIR:-${HOME}/Python/dexter-telegram}"
+BUN_BIN="${DEXTER_BUN_BIN:-${HOME}/.bun/bin/bun}"
 ENV_FILE="${PROD_DIR}/.env"
 GATEWAY_CONFIG="${PROD_DIR}/.dexter/gateway.json"
 SAFETY_STATE="${PROD_DIR}/.dexter/telegram-safety.json"
@@ -94,6 +95,26 @@ if errors:
 PY
 }
 
+ensure_runtime_dependencies() {
+  local sentinel="${PROD_DIR}/node_modules/mime-db/db.json"
+  if [[ -f "${sentinel}" ]]; then
+    return 0
+  fi
+  if [[ ! -x "${BUN_BIN}" ]]; then
+    echo "Dexter dependency repair requires executable Bun: ${BUN_BIN}" >&2
+    return 1
+  fi
+  echo "Dexter dependencies missing; restoring from bun.lock..." >&2
+  (
+    cd "${PROD_DIR}"
+    "${BUN_BIN}" install --frozen-lockfile
+  )
+  if [[ ! -f "${sentinel}" ]]; then
+    echo "Dexter dependency repair completed without ${sentinel}" >&2
+    return 1
+  fi
+}
+
 is_loaded() {
   launchctl print "${DOMAIN}/${LABEL}" >/dev/null 2>&1
 }
@@ -102,6 +123,7 @@ case "${1:-}" in
   install)
     require_plist
     require_runtime_inputs
+    ensure_runtime_dependencies
     mkdir -p "${HOME}/Library/LaunchAgents"
     cp "${SOURCE_PLIST}" "${TARGET_PLIST}"
     launchctl bootout "${DOMAIN}/${LABEL}" >/dev/null 2>&1 || true
@@ -110,6 +132,7 @@ case "${1:-}" in
     ;;
   start)
     require_runtime_inputs
+    ensure_runtime_dependencies
     launchctl kickstart -k "${DOMAIN}/${LABEL}"
     ;;
   stop)
@@ -118,6 +141,7 @@ case "${1:-}" in
   restart)
     require_plist
     require_runtime_inputs
+    ensure_runtime_dependencies
     mkdir -p "${HOME}/Library/LaunchAgents"
     cp "${SOURCE_PLIST}" "${TARGET_PLIST}"
     if ! is_loaded; then

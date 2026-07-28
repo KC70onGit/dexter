@@ -3,6 +3,18 @@ import { AlgoTraderGatewayClient } from './client.js';
 
 const realFetch = globalThis.fetch;
 
+function requestUrl(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
+function installFetchMock(
+  implementation: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
+): void {
+  globalThis.fetch = Object.assign(implementation, { preconnect: realFetch.preconnect });
+}
+
 afterEach(() => {
   globalThis.fetch = realFetch;
   delete process.env.ALGOTRADER_BASE_URL;
@@ -10,7 +22,7 @@ afterEach(() => {
 
 describe('AlgoTraderGatewayClient', () => {
   test('normalizes /api/health into a shared envelope', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -19,7 +31,8 @@ describe('AlgoTraderGatewayClient', () => {
           signals_total: 7,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getHealth();
@@ -37,7 +50,7 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('marks NO_DATA health as stale', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -46,7 +59,8 @@ describe('AlgoTraderGatewayClient', () => {
           signals_total: 0,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getHealth();
@@ -61,7 +75,7 @@ describe('AlgoTraderGatewayClient', () => {
 
   test('treats stale MARKET_CLOSED as non-authoritative monitor state', async () => {
     const staleTimestamp = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -70,7 +84,8 @@ describe('AlgoTraderGatewayClient', () => {
           signals_total: 0,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getHealth();
@@ -87,8 +102,8 @@ describe('AlgoTraderGatewayClient', () => {
 
   test('passes include_sim to the trades endpoint only when requested', async () => {
     const seenUrls: string[] = [];
-    globalThis.fetch = async (input) => {
-      seenUrls.push(typeof input === 'string' ? input : input.url);
+    installFetchMock(async (input) => {
+      seenUrls.push(requestUrl(input));
       return new Response(
         JSON.stringify({
           ok: true,
@@ -99,7 +114,7 @@ describe('AlgoTraderGatewayClient', () => {
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
-    };
+    });
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     await client.getTrades();
@@ -112,7 +127,7 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('reads autotrade whitelist status', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -120,7 +135,8 @@ describe('AlgoTraderGatewayClient', () => {
           whitelist: ['aapl', 'msft'],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getAutotradeStatus();
@@ -132,14 +148,15 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('wraps chart responses into the shared envelope', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
           chart: { ticker: 'AAPL', bars: [1, 2, 3] },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getChart('aapl');
@@ -150,7 +167,7 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('submits a trade request through POST /api/trade', async () => {
-    globalThis.fetch = async (_input, init) => {
+    installFetchMock(async (_input, init) => {
       expect(init?.method).toBe('POST');
       expect(init?.body).toBeDefined();
       return new Response(
@@ -161,7 +178,7 @@ describe('AlgoTraderGatewayClient', () => {
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
-    };
+    });
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.submitTrade({
@@ -189,8 +206,8 @@ describe('AlgoTraderGatewayClient', () => {
 
   test('getStatus returns connected when gateway reachable and engine connected', async () => {
     const seenUrls: string[] = [];
-    globalThis.fetch = async (input) => {
-      seenUrls.push(typeof input === 'string' ? input : input.url);
+    installFetchMock(async (input) => {
+      seenUrls.push(requestUrl(input));
       return new Response(
         JSON.stringify({
           ok: true,
@@ -204,8 +221,8 @@ describe('AlgoTraderGatewayClient', () => {
           session_state: 'LIVE',
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
-    };
+      );
+    });
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getStatus();
@@ -225,7 +242,7 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('getStatus returns gateway_only when gateway reachable but engine disconnected', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -239,7 +256,8 @@ describe('AlgoTraderGatewayClient', () => {
           session_state: 'LIVE',
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getStatus();
@@ -254,7 +272,7 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('getStatus returns unreachable when both gateway and engine are down', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -268,7 +286,8 @@ describe('AlgoTraderGatewayClient', () => {
           session_state: null,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getStatus();
@@ -284,7 +303,7 @@ describe('AlgoTraderGatewayClient', () => {
 
   test('getStatus returns unknown broker state when status is stale', async () => {
     const staleTimestamp = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -298,7 +317,8 @@ describe('AlgoTraderGatewayClient', () => {
           session_state: 'LIVE',
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getStatus();
@@ -312,7 +332,7 @@ describe('AlgoTraderGatewayClient', () => {
   });
 
   test('getStatus reports non-default gateway port in guidance', async () => {
-    globalThis.fetch = async () =>
+    installFetchMock(async () =>
       new Response(
         JSON.stringify({
           ok: true,
@@ -326,7 +346,8 @@ describe('AlgoTraderGatewayClient', () => {
           session_state: 'LIVE',
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ) as typeof fetch;
+      ),
+    );
 
     const client = new AlgoTraderGatewayClient('http://127.0.0.1:8787');
     const result = await client.getStatus();

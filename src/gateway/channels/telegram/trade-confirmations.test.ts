@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import type { GatewayConfig } from '../../config.js';
 import {
   cancelPendingTelegramTrade,
   confirmPendingTelegramTrade,
@@ -12,6 +13,45 @@ import {
 
 const realFetch = globalThis.fetch;
 let tempDir: string | null = null;
+
+function requestUrl(input: Parameters<typeof fetch>[0]): string {
+  if (typeof input === 'string') {
+    return input;
+  }
+  return input instanceof URL ? input.href : input.url;
+}
+
+function installFetchMock(
+  implementation: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>,
+): void {
+  globalThis.fetch = Object.assign(implementation, {
+    preconnect: realFetch.preconnect,
+  });
+}
+
+const tradeEnabledConfig: GatewayConfig = {
+  gateway: {
+    accountId: 'default',
+    logLevel: 'info',
+  },
+  channels: {
+    whatsapp: { enabled: false, accounts: {}, allowFrom: [] },
+    telegram: { enabled: true, accounts: {}, allowFrom: ['*'] },
+  },
+  bindings: [],
+  safety: {
+    dailyTokenBudget: {
+      enabled: false,
+      maxTokens: 0,
+      timezone: 'UTC',
+    },
+    tradeRequests: {
+      enabled: true,
+      requireHeartbeat: false,
+      maxDailyRequests: 10,
+    },
+  },
+};
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), 'dexter-trade-confirm-'));
@@ -38,8 +78,8 @@ describe('telegram trade confirmations', () => {
   });
 
   test('prepares and cancels a pending trade', async () => {
-    globalThis.fetch = async (input) => {
-      const url = typeof input === 'string' ? input : input.url;
+    installFetchMock(async (input) => {
+      const url = requestUrl(input);
       if (url.endsWith('/api/health')) {
         return new Response(JSON.stringify({
           ok: true,
@@ -56,7 +96,7 @@ describe('telegram trade confirmations', () => {
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       throw new Error(`Unexpected URL ${url}`);
-    };
+    });
 
     const pending = await preparePendingTelegramTrade({
       chatId: 'chat-1',
@@ -64,6 +104,7 @@ describe('telegram trade confirmations', () => {
       ticker: 'aapl',
       side: 'BUY',
       amountUsd: 5000,
+      config: tradeEnabledConfig,
     });
     expect(getPendingTelegramTrade(pending.token)?.request.ticker).toBe('AAPL');
 
@@ -77,8 +118,8 @@ describe('telegram trade confirmations', () => {
   });
 
   test('confirms a pending trade through the monitor server', async () => {
-    globalThis.fetch = async (input, init) => {
-      const url = typeof input === 'string' ? input : input.url;
+    installFetchMock(async (input, init) => {
+      const url = requestUrl(input);
       if (url.endsWith('/api/health')) {
         return new Response(JSON.stringify({
           ok: true,
@@ -103,7 +144,7 @@ describe('telegram trade confirmations', () => {
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       throw new Error(`Unexpected URL ${url}`);
-    };
+    });
 
     const pending = await preparePendingTelegramTrade({
       chatId: 'chat-2',
@@ -111,12 +152,14 @@ describe('telegram trade confirmations', () => {
       ticker: 'AAPL',
       side: 'BUY',
       amountUsd: 5000,
+      config: tradeEnabledConfig,
     });
 
     const result = await confirmPendingTelegramTrade({
       token: pending.token,
       chatId: 'chat-2',
       userId: 'user-2',
+      config: tradeEnabledConfig,
     });
     expect(result.ok).toBe(true);
     expect(result.message).toContain('Trade request sent');
@@ -124,8 +167,8 @@ describe('telegram trade confirmations', () => {
   });
 
   test('blocks trade preparation when the market is closed', async () => {
-    globalThis.fetch = async (input) => {
-      const url = typeof input === 'string' ? input : input.url;
+    installFetchMock(async (input) => {
+      const url = requestUrl(input);
       if (url.endsWith('/api/health')) {
         return new Response(JSON.stringify({
           ok: true,
@@ -135,7 +178,7 @@ describe('telegram trade confirmations', () => {
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       throw new Error(`Unexpected URL ${url}`);
-    };
+    });
 
     await expect(preparePendingTelegramTrade({
       chatId: 'chat-3',
@@ -143,12 +186,13 @@ describe('telegram trade confirmations', () => {
       ticker: 'AAPL',
       side: 'BUY',
       amountUsd: 5000,
+      config: tradeEnabledConfig,
     })).rejects.toThrow('MARKET_CLOSED');
   });
 
   test('blocks stale MARKET_CLOSED health as stale monitor state first', async () => {
-    globalThis.fetch = async (input) => {
-      const url = typeof input === 'string' ? input : input.url;
+    installFetchMock(async (input) => {
+      const url = requestUrl(input);
       if (url.endsWith('/api/health')) {
         return new Response(JSON.stringify({
           ok: true,
@@ -158,7 +202,7 @@ describe('telegram trade confirmations', () => {
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       throw new Error(`Unexpected URL ${url}`);
-    };
+    });
 
     await expect(preparePendingTelegramTrade({
       chatId: 'chat-4',
@@ -166,6 +210,7 @@ describe('telegram trade confirmations', () => {
       ticker: 'AAPL',
       side: 'BUY',
       amountUsd: 5000,
+      config: tradeEnabledConfig,
     })).rejects.toThrow('stale and last reported MARKET_CLOSED');
   });
 });

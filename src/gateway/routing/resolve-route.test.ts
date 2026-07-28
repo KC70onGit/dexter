@@ -11,6 +11,10 @@ describe('resolveRoute', () => {
           telegram: { enabled: true, accounts: {}, allowFrom: [] }
         },
         bindings: [],
+        safety: {
+          dailyTokenBudget: { enabled: false, maxTokens: 0, timezone: 'UTC' },
+          tradeRequests: { enabled: false, requireHeartbeat: true, maxDailyRequests: 0 },
+        },
       },
       channel: 'whatsapp',
       accountId: 'default',
@@ -39,6 +43,10 @@ describe('resolveRoute', () => {
             },
           },
         ],
+        safety: {
+          dailyTokenBudget: { enabled: false, maxTokens: 0, timezone: 'UTC' },
+          tradeRequests: { enabled: false, requireHeartbeat: true, maxDailyRequests: 0 },
+        },
       },
       channel: 'whatsapp',
       accountId: 'default',
@@ -48,4 +56,3 @@ describe('resolveRoute', () => {
     expect(route.matchedBy).toBe('binding.peer');
   });
 });
-
