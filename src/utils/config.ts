@@ -15,6 +15,7 @@ const MODEL_TO_PROVIDER_MAP: Record<string, string> = {
 // Deprecated model IDs to upgrade on load
 const DEPRECATED_MODEL_UPGRADES: Record<string, string> = {
   'gpt-5.2': 'gpt-5.4',
+  'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite',
 };
 
 interface Config {

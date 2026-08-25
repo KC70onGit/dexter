@@ -89,7 +89,7 @@ Suggested explicit values:
 Current aligned selection in both dev and prod:
 
 - provider: `google`
-- model: `gemini-2.5-flash-lite`
+- model: `gemini-3.1-flash-lite`
 
 Candidate Intelligence validation:
 
@@ -143,7 +143,7 @@ Telegram cost note:
 
 - the Telegram safety state now tracks input tokens, output tokens, and handled chat count per day
 - every 10 Telegram chats, Dexter appends a lightweight running cost estimate to the reply
-- current estimate logic supports `gemini-2.5-flash-lite` and `gemini-3-flash-preview`
+- current estimate logic supports `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, and `gemini-3.1-pro-preview`
 
 ## Repo Map
 

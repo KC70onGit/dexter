@@ -98,7 +98,7 @@ describe('telegram safety policy', () => {
     let estimate: string | null = null;
     for (let i = 0; i < 10; i += 1) {
       estimate = recordTelegramHandledChatAndMaybeGetCostEstimate({
-        modelId: 'gemini-2.5-flash-lite',
+        modelId: 'gemini-3.1-flash-lite',
         config: cfg,
       });
     }
